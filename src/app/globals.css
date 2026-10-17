@@ -11,6 +11,10 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
+  --font-display: var(--font-display);
+  --color-highlight: var(--highlight);
+  --color-human: var(--human);
+  --color-rule: var(--rule);
   --color-firsthand: var(--firsthand);
   --color-experiment: var(--experiment);
   --color-fixture: var(--fixture);
@@ -51,6 +55,14 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  /* Caution tape unrolling across the page when the human view opens. */
+  --animate-tape: tape 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+  --animate-tape-late: tape 0.55s 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+  @keyframes tape {
+    from {
+      transform: scaleX(0);
+    }
+  }
 }
 
 :root {
@@ -89,6 +101,27 @@
   --sidebar-accent-foreground: #17241d;
   --sidebar-border: #d3dbd5;
   --sidebar-ring: #1e5c40;
+  --highlight: #ffd23f;
+  --human: #ff6aa9;
+  --rule: #bcd4f2;
+}
+
+/* "I am Human": same brand, saturation turned all the way up. */
+[data-mode="human"] {
+  --background: #d4f4e2;
+  --foreground: #14211a;
+  --primary: #2443d6;
+  --primary-foreground: #ffffff;
+  --secondary: #bfeacf;
+  --muted: #bfeacf;
+  --muted-foreground: #2f4a3b;
+  --accent: #fff1b8;
+  --border: #14211a;
+  --input: #14211a;
+  --ring: #2443d6;
+  --firsthand: #13a05a;
+  --experiment: #2443d6;
+  --radius: 0.875rem;
 }
 
 .dark {

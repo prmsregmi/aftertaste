@@ -27,7 +27,7 @@ export function ModeToggle() {
   }
 
   return (
-    <label className="flex cursor-pointer items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm font-medium">
+    <label className="flex cursor-pointer items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:border-human human:bg-highlight">
       <Switch checked={human} onCheckedChange={change} aria-describedby="mode-hint" />
       I am Human
       <span id="mode-hint" className="sr-only">

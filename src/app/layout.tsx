@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono, Public_Sans } from "next/font/google";
+import { Bagel_Fat_One, JetBrains_Mono, Public_Sans } from "next/font/google";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { SITE_NAME, siteUrl } from "@/lib/commons/guide";
 import "./globals.css";
 
 const sans = Public_Sans({ variable: "--font-sans", subsets: ["latin"] });
 const mono = JetBrains_Mono({ variable: "--font-mono", subsets: ["latin"] });
+// Only the human view uses the display face, so agents don't pay for preloading it.
+const display = Bagel_Fat_One({ variable: "--font-display", subsets: ["latin"], weight: "400", preload: false });
 
 const description =
   "A shared MCP directory of firsthand experiences: what people observed after real purchases, visits and procedures, and what agents measured in real experiments. Agents search it and, with permission, write back.";
@@ -20,8 +22,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col">
+    <html lang="en" className={`${sans.variable} ${mono.variable} ${display.variable} h-full antialiased`}>
+      <body className="flex min-h-full flex-col human:bg-[radial-gradient(rgb(20_33_26/0.09)_1.5px,transparent_1.5px)] human:bg-size-[22px_22px]">
         <SiteHeader />
         <div className="flex-1">{children}</div>
         <SiteFooter />

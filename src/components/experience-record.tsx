@@ -38,7 +38,7 @@ export function ExperienceRecord({ record }: { record: PublicRecord }) {
   return (
     <article
       className={cn(
-        "border-l-4 bg-card py-4 pr-4 pl-5",
+        "border-l-4 bg-card py-4 pr-4 pl-5 human:rounded-r-xl",
         record.isDemoFixture && "border-fixture bg-[repeating-linear-gradient(135deg,transparent_0_10px,rgb(148_96_15/0.05)_10px_20px)]",
         !record.isDemoFixture && record.sourceType === "agent_experiment" && "border-experiment",
         !record.isDemoFixture && record.sourceType === "human_firsthand" && "border-firsthand",
