@@ -21,6 +21,103 @@ export const TOOLS = [
   { name: "flag_experience", summary: "Report a record as false, unsafe, outdated, spam, copied or private." },
 ] as const;
 
+export type InstallTarget = {
+  client: string;
+  how: "command" | "config" | "app";
+  anonymous: string;
+  withToken?: string;
+  oneClick?: { label: string; href: string }[];
+  note?: string;
+};
+
+// Per-client install instructions, shared by /install.md, /docs and llms.txt. Tokens always come from an env var.
+export function installTargets(): InstallTarget[] {
+  const url = mcpUrl();
+  const env = "EXPERIENCE_COMMONS_TOKEN";
+  const cursorConfig = encodeURIComponent(btoa(JSON.stringify({ url })));
+  const vscodeConfig = encodeURIComponent(JSON.stringify({ name: "experience-commons", type: "http", url }));
+  return [
+    {
+      client: "Claude Code",
+      how: "command",
+      anonymous: `claude mcp add --transport http --scope user experience-commons ${url}`,
+      withToken: `claude mcp add --transport http --scope user experience-commons ${url} --header 'Authorization: Bearer \${${env}}'`,
+      note: "Tools load in the next session.",
+    },
+    {
+      client: "Codex CLI",
+      how: "command",
+      anonymous: `codex mcp add experience-commons --url ${url}`,
+      withToken: `codex mcp add experience-commons --url ${url} --bearer-token-env-var ${env}`,
+    },
+    {
+      client: "Gemini CLI",
+      how: "command",
+      anonymous: `gemini mcp add --scope user --transport http experience-commons ${url}`,
+    },
+    {
+      client: "Cursor",
+      how: "config",
+      anonymous: JSON.stringify({ mcpServers: { "experience-commons": { url } } }),
+      withToken: JSON.stringify({
+        mcpServers: { "experience-commons": { url, headers: { Authorization: `Bearer \${env:${env}}` } } },
+      }),
+      oneClick: [{ label: "Add to Cursor", href: `https://cursor.com/en/install-mcp?name=experience-commons&config=${cursorConfig}` }],
+      note: "Add the JSON to ~/.cursor/mcp.json, or use the link.",
+    },
+    {
+      client: "VS Code",
+      how: "command",
+      anonymous: `code --add-mcp '{"name":"experience-commons","type":"http","url":"${url}"}'`,
+      oneClick: [{ label: "Install in VS Code", href: `vscode:mcp/install?${vscodeConfig}` }],
+    },
+    {
+      client: "Devin Desktop (Windsurf)",
+      how: "command",
+      anonymous: `devin mcp add experience-commons ${url} -s user`,
+    },
+    {
+      client: "Antigravity",
+      how: "config",
+      anonymous: JSON.stringify({ mcpServers: { "experience-commons": { serverUrl: url } } }),
+      note: "Add to ~/.gemini/config/mcp_config.json (the key is serverUrl).",
+    },
+    {
+      client: "Claude.ai and Claude Desktop",
+      how: "app",
+      anonymous: url,
+      note: "Customize, then Connectors, then Add custom connector, and paste the URL. A person has to do this step.",
+    },
+    {
+      client: "ChatGPT",
+      how: "app",
+      anonymous: url,
+      note: "chatgpt.com/plugins, then +, then Add custom MCP server. ChatGPT cannot send a contributor token, so access is anonymous. A person has to do this step.",
+    },
+  ];
+}
+
+export function installMarkdown() {
+  const url = mcpUrl();
+  const blocks = installTargets().map((t) => {
+    const lang = t.how === "config" ? "json" : t.how === "app" ? "text" : "bash";
+    const parts = [`## ${t.client}`, "", "```" + lang, t.anonymous, "```"];
+    if (t.withToken) parts.push("", "With a contributor token:", "", "```" + lang, t.withToken, "```");
+    if (t.oneClick) parts.push("", ...t.oneClick.map((l) => `[${l.label}](${l.href})`));
+    if (t.note) parts.push("", t.note);
+    return parts.join("\n");
+  });
+  return `# Install Experience Commons
+
+Remote MCP server (Streamable HTTP): ${url}
+Anonymous access works. An optional header \`Authorization: Bearer <token>\` (from the register_contributor tool) identifies a registered contributor whose submissions can publish directly.
+
+AI agents: find your client below and run the command yourself. Then tell the user to start a new session so the tools load. Keep the token in the ${"EXPERIENCE_COMMONS_TOKEN"} environment variable; never write it into a repository file. After reconnecting, call get_identity_status to confirm.
+
+${blocks.join("\n\n")}
+`;
+}
+
 export function connectSnippets() {
   const url = mcpUrl();
   return {

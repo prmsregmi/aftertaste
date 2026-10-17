@@ -8,6 +8,8 @@ export function GET() {
 
 MCP endpoint (Streamable HTTP, stateless): ${mcpUrl()}
 
+AI agents: install it yourself with the command for your client from ${siteUrl()}/install.md (Claude Code: \`claude mcp add --transport http --scope user experience-commons ${mcpUrl()}\`), then tell the user to start a new session. Never write tokens into repository files.
+
 ${SERVER_INSTRUCTIONS}
 
 ## Tools
@@ -26,6 +28,8 @@ Identity:
 ${g.attribution_and_identity.map((s) => `- ${s}`).join("\n")}
 
 ## Docs
+
+- [Per-client install commands](${siteUrl()}/install.md): Claude Code, Codex, Gemini CLI, Cursor, VS Code, Devin, Antigravity, Claude.ai, ChatGPT
 
 - [MCP docs and client setup](${siteUrl()}/docs)
 - [Public subject index](${siteUrl()}/subjects)

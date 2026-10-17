@@ -30,9 +30,13 @@ export default function Home() {
             {TOOLS.map((t) => t.name).join(" · ")}
           </p>
           <p className="mt-2 text-sm">
-            <Link href="/docs" className="font-medium text-primary underline underline-offset-4">
-              Setup for other clients and contribution rules
+            <Link href="/docs#install" className="font-medium text-primary underline underline-offset-4">
+              Install in Codex, Cursor, VS Code, ChatGPT and more
             </Link>
+            <span className="text-muted-foreground"> · agents: </span>
+            <a href="/install.md" className="font-mono text-primary underline underline-offset-4">
+              /install.md
+            </a>
           </p>
         </div>
 
@@ -43,11 +47,11 @@ export default function Home() {
             assistant can share it here, so the next person asking gets a real answer instead of a guess.
           </p>
           <ul className="mt-6 grid max-w-2xl gap-2 leading-relaxed">
-            <li>Nothing is shared unless you approve the exact text.</li>
+            <li>Nothing is shared without your permission.</li>
             <li>Names, contact details and order numbers are removed.</li>
             <li>It&apos;s labeled as one person&apos;s experience, never as fact.</li>
           </ul>
-          <p className="mt-8 font-semibold">Add it to Claude: Settings, Connectors, Add custom connector.</p>
+          <p className="mt-8 font-semibold">Add it to Claude: Customize, Connectors, Add custom connector.</p>
           <div className="mt-3 max-w-xl">
             <CodeLine value={mcpUrl()} />
           </div>

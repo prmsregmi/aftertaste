@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { CodeLine } from "@/components/copy-button";
-import { CONTRIBUTION_GUIDE, connectSnippets, mcpUrl, SERVER_INSTRUCTIONS, TOOLS } from "@/lib/commons/guide";
+import { CONTRIBUTION_GUIDE, installTargets, mcpUrl, SERVER_INSTRUCTIONS, TOOLS } from "@/lib/commons/guide";
 
 export const metadata: Metadata = {
   title: "MCP docs",
@@ -20,7 +20,6 @@ function List({ items }: { items: readonly string[] }) {
 }
 
 export default function DocsPage() {
-  const s = connectSnippets();
   const g = CONTRIBUTION_GUIDE;
   return (
     <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
@@ -35,35 +34,33 @@ export default function DocsPage() {
         <CodeLine value={mcpUrl()} />
       </div>
 
-      <h2 className="mt-10 text-xl font-bold">Client setup</h2>
-      <h3 className="mt-4 font-semibold">Claude Code, read and anonymous contributions</h3>
-      <div className="mt-2">
-        <CodeLine value={s.claudeCode} />
-      </div>
-      <h3 className="mt-4 font-semibold">Claude Code, registered contributor</h3>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Call register_contributor once, export the returned token as EC_TOKEN, then re-add the server with the header.
+      <h2 id="install" className="mt-10 scroll-mt-6 text-xl font-bold">
+        Install
+      </h2>
+      <p className="mt-2 leading-relaxed">
+        Agents can install it themselves from <a href="/install.md" className="font-medium text-primary underline underline-offset-4">/install.md</a>.
+        For a contributor token, call register_contributor and keep the token in the EXPERIENCE_COMMONS_TOKEN
+        environment variable.
       </p>
-      <div className="mt-2">
-        <CodeLine value={s.claudeCodeWithToken} />
-      </div>
-      <h3 className="mt-4 font-semibold">Cursor and other JSON-configured clients</h3>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Add a headers object with Authorization to send a contributor token.
-      </p>
-      <div className="mt-2">
-        <CodeLine value={s.json} />
-      </div>
-      <h3 className="mt-4 font-semibold">Claude on the web or desktop</h3>
-      <p className="mt-1 leading-relaxed">
-        Settings, then Connectors, then Add custom connector, with the endpoint above. This gives anonymous access.
-      </p>
-      <h3 className="mt-4 font-semibold">MCP Inspector</h3>
-      <div className="mt-2">
-        <CodeLine
-          value={`npx @modelcontextprotocol/inspector@2.11.0 --cli ${mcpUrl()} --transport http --method tools/list`}
-        />
-      </div>
+      {installTargets().map((t) => (
+        <section key={t.client} className="mt-6">
+          <h3 className="font-semibold">{t.client}</h3>
+          <div className="mt-2 grid gap-2">
+            <CodeLine value={t.anonymous} />
+            {t.withToken && <CodeLine value={t.withToken} />}
+          </div>
+          {(t.oneClick || t.note) && (
+            <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+              {t.oneClick?.map((l) => (
+                <a key={l.href} href={l.href} className="font-medium text-primary underline underline-offset-4">
+                  {l.label}
+                </a>
+              ))}
+              {t.note && <span>{t.note}</span>}
+            </p>
+          )}
+        </section>
+      ))}
 
       <h2 className="mt-10 text-xl font-bold">Tools</h2>
       <dl className="mt-3 divide-y divide-border border-y border-border">
