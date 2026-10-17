@@ -7,7 +7,7 @@ Short record of research-backed choices, demo compromises and open questions. On
 - **Next.js 16.4 App Router on Vercel, Cache Components on.** Public pages read through `'use cache'` helpers tagged `commons`; a publish calls `revalidateTag('commons', 'max')` so counts and samples refresh without a redeploy.
 - **MCP server built on mcp-use 2.10, embedded in the Next app on Vercel** (`src/mcp/server.ts`, mounted by `createNextHandler` at `/api/mcp/[[...path]]`, built by `withMcpUse` in `next.config.ts`). It replaced an equivalent mcp-handler 2.3 server at the user's request; both sit on `@modelcontextprotocol/server` 2.3.1, so behavior is unchanged. One stateless Streamable HTTP endpoint serves 2026-07-28 and 2025-era clients (both verified). Manufact cloud hosting was not used, to keep one deployment on Vercel and avoid free-tier cold starts during a live demo.
 - **Neon Postgres + Drizzle + `pg` Pool with `attachDatabasePool`.** Neon and Vercel both recommend a pooled TCP client on Fluid Compute over the HTTP driver; the pool is kept small (`max: 5`).
-- **Plain-text tool results (JSON in a text block), no `outputSchema`.** Every client can read them; structured output can be added once the shapes settle.
+- **Tool results stay JSON text; `search_experiences` also returns structured content bound to an mcp-use view** (`src/mcp/views/experience-cards`). MCP Apps clients (Claude, ChatGPT, VS Code, Cursor per vendor docs; not tested in each) render cards, everyone else reads the same JSON. Its output schema is loose so extra fields never fail strict clients.
 
 ## Identity
 
