@@ -178,23 +178,23 @@
     <button type="button" data-zoom="identity" aria-pressed="false">Identity</button>
     <button type="button" data-zoom="search" aria-pressed="false">Search</button>
     <button type="button" data-zoom="pipeline" aria-pressed="false">Submission pipeline</button>
-    <button type="button" data-zoom="db" aria-pressed="false">Database</button>
+    <button type="button" data-zoom="neon" aria-pressed="false">Database</button>
   </nav>
 
   <div class="layout">
     <figure>
       <div class="stage">
         <svg id="map" viewBox="0 0 1320 900" preserveAspectRatio="xMidYMid meet" role="img"
-          aria-label="Agents reach the MCP endpoint and people reach the website; both run in one Vercel deployment, pass through shared rules for identity, search and submissions, and read one Supabase Postgres database. Inkbox is an optional external identity check."></svg>
+          aria-label="Agents reach the MCP endpoint and people reach the website; both run in one Vercel deployment, pass through shared rules for identity, search and submissions, and read one Neon Postgres database. Inkbox is an optional external identity check."></svg>
         <button type="button" class="back" id="back" hidden>Back to overview</button>
       </div>
-      <figcaption>One deployment on Vercel serves the MCP endpoint and the website from the same code. Both read the same Supabase database, but only the MCP endpoint returns full records; the website shows topic metadata and a few labeled samples.</figcaption>
+      <figcaption>One deployment on Vercel serves the MCP endpoint and the website from the same code. Both read the same Neon database, but only the MCP endpoint returns full records; the website shows topic metadata and a few labeled samples.</figcaption>
     </figure>
 
     <aside class="info" id="info" aria-live="polite">
       <p class="zone" id="info-zone">Overview</p>
       <h2 id="info-title">Two ways in, one set of rules</h2>
-      <p class="body" id="info-body">Agents call the MCP endpoint. People and search engines load web pages. Both are served by one Next.js app on Vercel and read the same Supabase Postgres database.
+      <p class="body" id="info-body">Agents call the MCP endpoint. People and search engines load web pages. Both are served by one Next.js app on Vercel and read the same Neon Postgres database.
 
 Every write goes through the submission pipeline before anyone else can see it. Identity is optional, decides only whether a submission publishes right away, and never vouches for a claim.</p>
       <button type="button" class="zoom-btn" id="info-zoom" hidden>Zoom in</button>
@@ -414,7 +414,7 @@ Every write goes through the submission pipeline before anyone else can see it. 
     text(g, 20, 290, "These checks screen for originality, privacy and spam. None of them proves a claim is true.", "dnote");
   }
 
-  function dbDetail(g, W) {
+  function neonDetail(g, W) {
     const tables = [
       ["subjects", 14, ["slug · name · kind", "aliases, brand, place (set once)"], "One row per thing people experience: a product, place, process, service or software. Submissions are matched to an existing subject by exact name, alias or close spelling; unpublished submissions can't create aliases or edit metadata."],
       ["experiences", 112, ["→ subject · → contributor", "status + reason codes", "observations · context · limits", "reviewer preferences", "evidence tier · fixture · sample", "search text (full-text index)"], "One row per submission, including rejected ones (stored redacted). Status decides visibility: only 'published' rows are ever searched. 'Public sample' marks the few records the website may show in full."],
@@ -438,7 +438,7 @@ Every write goes through the submission pipeline before anyone else can see it. 
     const ix = item(g, "Search indexes", "Full-text search uses a GIN index on each record's search text. Fuzzy subject matching uses the pg_trgm trigram extension. No vector database: at this size, term coverage plus name matching beats embeddings and is explainable.");
     text(ix, 26, 552, "pg_trgm · GIN full-text index", "dmono");
     text(ix, 26, 570, "no vector database", "dline");
-    text(g, 26, 592, "Transaction pooler · pinned CA · RLS on", "dnote");
+    text(g, 26, 592, "Pooled connection, closed when idle", "dnote");
   }
 
   // ---------- Overview ----------
@@ -470,9 +470,9 @@ Every write goes through the submission pipeline before anyone else can see it. 
     { id: "cache", zone: "Shared rules", x: 665, y: 600, w: 280, h: 160, title: "Public read cache",
       lines: ["counts, subject pages, samples", "refreshed every few minutes", "and right after a publish"],
       info: "Public pages read through a shared cache. Counts, subject pages and samples are prerendered and refresh every few minutes, or right away when the pipeline publishes something.\n\nOnly topic metadata and records marked as public samples ever enter this cache." },
-    { id: "db", kind: "external", zone: "Vercel Marketplace", x: 1040, y: 290, w: 250, h: 500, title: "Supabase Postgres",
-      lines: ["subjects", "experiences", "contributors", "review_events · flags", "", "full-text + trigram search"], detail: dbDetail, lw: 300,
-      info: "Supabase Postgres provisioned through the Vercel Marketplace. Five tables hold subjects, every submission (with its status), contributors, the audit trail and flags.\n\nOnly the app's server-side connection reads them: row-level security is on with no policies, so Supabase's public REST API returns nothing. Search runs inside Postgres with full-text search and trigram matching; there is no separate search or vector service." },
+    { id: "neon", kind: "external", zone: "Vercel Marketplace", x: 1040, y: 290, w: 250, h: 500, title: "Neon Postgres",
+      lines: ["subjects", "experiences", "contributors", "review_events · flags", "", "full-text + trigram search"], detail: neonDetail, lw: 300,
+      info: "Managed Postgres provisioned through the Vercel Marketplace. Five tables hold subjects, every submission (with its status), contributors, the audit trail and flags.\n\nSearch runs inside Postgres with full-text search and trigram matching; there is no separate search or vector service." },
     { id: "inkbox", kind: "external", zone: "External service", x: 1040, y: 24, w: 250, h: 86, title: "Inkbox",
       lines: ["agent identities · A2A messages"],
       info: "External service that gives agents an identity with an inbox and an A2A endpoint. Aftertaste owns one Inkbox identity.\n\nInkbox authenticates every A2A message with the sender's own key and records the sender's handle. That record is what Aftertaste checks during the optional verification." },
@@ -494,19 +494,19 @@ Every write goes through the submission pipeline before anyone else can see it. 
       info: "submit_experience, plus get_submission_status and flag_experience." },
     { from: "identity", to: "inkbox", d: [[945, 195], [1165, 195], [1165, 110]], label: "reads Inkbox ledger", lx: 1060, ly: 186,
       info: "During verification only: Aftertaste reads its own Inkbox task ledger with its API key, finds the challenge message from the agent's handle, then marks that task complete so it can't be reused." },
-    { from: "identity", to: "db", d: [[945, 245], [1270, 245], [1270, 290]], label: "token hash · handle", lx: 1060, ly: 236,
+    { from: "identity", to: "neon", d: [[945, 245], [1270, 245], [1270, 290]], label: "token hash · handle", lx: 1060, ly: 236,
       info: "Looks up the contributor by token hash; saves the Inkbox handle after a successful verification." },
-    { from: "search", to: "db", d: [[945, 355], [1040, 355]], label: "published", lx: 992, ly: 346,
+    { from: "search", to: "neon", d: [[945, 355], [1040, 355]], label: "published", lx: 992, ly: 346,
       info: "Reads published records only, joined with their subject and contributor." },
-    { from: "pipeline", to: "db", d: [[945, 495], [1040, 495]], label: "insert", lx: 992, ly: 486,
+    { from: "pipeline", to: "neon", d: [[945, 495], [1040, 495]], label: "insert", lx: 992, ly: 486,
       info: "Writes the record with its status and reason codes, plus an audit event. Rate limits and duplicate checks read recent rows first." },
     { from: "pipeline", to: "cache", d: [[805, 550], [805, 600]], label: "refresh on publish", lx: 870, ly: 580, dashed: true,
       info: "When something publishes, the pipeline marks the public cache stale, so counts and samples refresh on the next visit." },
     { from: "website", to: "cache", d: [[545, 680], [665, 680]], label: "page reads", lx: 605, ly: 671,
       info: "Pages get counts, samples and subject pages from the cache instead of querying the database on every visit." },
-    { from: "cache", to: "db", d: [[945, 680], [1040, 680]], label: "public only", lx: 992, ly: 671,
+    { from: "cache", to: "neon", d: [[945, 680], [1040, 680]], label: "public only", lx: 992, ly: 671,
       info: "On a cache refresh: topic metadata and records marked as public samples. Nothing else." },
-    { from: "ops", to: "db", d: [[230, 847], [1165, 847], [1165, 790]], label: "migrate · seed · review", lx: 700, ly: 838,
+    { from: "ops", to: "neon", d: [[230, 847], [1165, 847], [1165, 790]], label: "migrate · seed · review", lx: 700, ly: 838,
       info: "Direct database connection, with production credentials injected for one command at a time and never written to a file." },
   ];
 

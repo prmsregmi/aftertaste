@@ -22,13 +22,6 @@
       "when": 1792269754837,
       "tag": "0002_preferences",
       "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1792277472254,
-      "tag": "0003_enable_rls",
-      "breakpoints": true
     }
   ]
 }
