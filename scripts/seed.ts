@@ -1,4 +1,7 @@
 // Seeds clearly labeled demo fixtures. Idempotent: skips records whose content hash already exists.
+// Operator scripts use the direct (unpooled) connection when one exists. It also wins over a local
+// DATABASE_URL that `vercel env run` layers on top of the remote environment from .env.local.
+process.env.DATABASE_URL = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { experiences } from "@/db/schema";
