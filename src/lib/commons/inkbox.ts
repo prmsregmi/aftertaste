@@ -17,23 +17,24 @@ export const serverCardUrl = () => `${INKBOX}/a2a/${env("INKBOX_AGENT_HANDLE")}/
 
 export const challengeText = (nonce: string) => `ec-verify:${nonce}`;
 
-function sign(handle: string, expires: string) {
+// Bound to the requesting contributor so a leaked nonce can't link the handle to someone else.
+function sign(contributorId: string, handle: string, expires: string) {
   return createHmac("sha256", `inkbox-challenge:${process.env.COMMONS_HASH_SALT}`)
-    .update(`${handle}:${expires}`)
+    .update(`${contributorId}:${handle}:${expires}`)
     .digest("base64url")
     .slice(0, 22);
 }
 
-export function issueChallenge(handle: string) {
+export function issueChallenge(contributorId: string, handle: string) {
   const expires = (Date.now() + CHALLENGE_TTL_MS).toString(36);
-  return { nonce: `${expires}.${sign(handle, expires)}`, expiresAt: new Date(parseInt(expires, 36)) };
+  return { nonce: `${expires}.${sign(contributorId, handle, expires)}`, expiresAt: new Date(parseInt(expires, 36)) };
 }
 
 // Returns the challenge's issue time when the nonce is authentic and unexpired for this handle.
-export function verifyChallenge(handle: string, nonce: string): Date | null {
+export function verifyChallenge(contributorId: string, handle: string, nonce: string): Date | null {
   const [expires, mac] = nonce.split(".");
   if (!expires || !mac) return null;
-  const expected = Buffer.from(sign(handle, expires));
+  const expected = Buffer.from(sign(contributorId, handle, expires));
   const given = Buffer.from(mac);
   const expiresAt = parseInt(expires, 36);
   if (given.length !== expected.length || !timingSafeEqual(given, expected) || Date.now() > expiresAt) return null;
@@ -48,6 +49,7 @@ export async function cardExists(handle: string) {
 
 type LedgerTask = {
   id: string;
+  state: string;
   caller: { handle: string | null };
   messages: { role: string; parts: { text?: string }[] }[];
 };
@@ -70,8 +72,10 @@ export async function findChallengeTask(handle: string, nonce: string, issuedAt:
   if (!res.ok) throw new Error(`Inkbox ledger returned ${res.status}`);
   const { items } = (await res.json()) as { items: LedgerTask[] };
   const text = challengeText(nonce);
+  // We complete the task on success, so a completed task means the challenge was already redeemed.
   return items.find(
     (t) =>
+      t.state !== "completed" &&
       t.caller.handle?.toLowerCase() === handle &&
       t.messages.some((m) => m.role === "caller" && m.parts.some((p) => p.text?.includes(text))),
   );

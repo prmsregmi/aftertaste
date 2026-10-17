@@ -200,12 +200,15 @@ export async function submitExperience(input: Submission, actor: Actor) {
   const db = getDb();
   const requestId = newId("req");
   const key = submitterKey(actor);
+  const owner = ownerKey(actor);
+  // Unidentified anonymous callers share a bucket, so their idempotency keys could collide or be replayed.
+  if (!owner) input = { ...input, idempotency_key: undefined };
 
-  if (input.idempotency_key) {
+  if (input.idempotency_key && owner) {
     const [existing] = await db
       .select({ id: experiences.id, status: experiences.status, reasonCodes: experiences.reasonCodes })
       .from(experiences)
-      .where(and(eq(experiences.submitterKey, key), eq(experiences.idempotencyKey, input.idempotency_key)));
+      .where(and(eq(experiences.submitterKey, owner), eq(experiences.idempotencyKey, input.idempotency_key)));
     if (existing) {
       return {
         id: existing.id,
@@ -240,7 +243,7 @@ export async function submitExperience(input: Submission, actor: Actor) {
     .where(and(eq(experiences.contentHash, contentHash), ne(experiences.status, "rejected")));
   if (dupe) {
     // Only reveal the ID when the caller could see it anyway, so this can't probe others' unpublished records.
-    const visible = dupe.status === "published" || dupe.submitterKey === ownerKey(actor);
+    const visible = dupe.status === "published" || dupe.submitterKey === owner;
     hold(
       "duplicate_submission",
       visible ? `Same content already exists as ${dupe.id}.` : "Same content was already submitted.",
@@ -518,7 +521,7 @@ export async function verifyAgentIdentity(rawHandle: string, nonce: string | und
     if (!(await inkbox.cardExists(handle))) {
       throw new CommonsError("not_found", `@${handle} has no public A2A agent card; it must be a claimed Inkbox identity with A2A enabled.`);
     }
-    const challenge = inkbox.issueChallenge(handle);
+    const challenge = inkbox.issueChallenge(actor.contributorId, handle);
     return {
       step: "send_challenge",
       send_to: inkbox.serverCardUrl(),
@@ -533,7 +536,7 @@ export async function verifyAgentIdentity(rawHandle: string, nonce: string | und
     };
   }
 
-  const issuedAt = inkbox.verifyChallenge(handle, nonce);
+  const issuedAt = inkbox.verifyChallenge(actor.contributorId, handle, nonce);
   if (!issuedAt) throw new CommonsError("invalid", "Challenge is invalid or expired; request a new one.");
   const task = await inkbox.findChallengeTask(handle, nonce, issuedAt);
   if (!task) {
