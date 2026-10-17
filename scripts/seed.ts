@@ -2,6 +2,8 @@
 // Operator scripts use the direct (unpooled) connection when one exists. It also wins over a local
 // DATABASE_URL that `vercel env run` layers on top of the remote environment from .env.local.
 process.env.DATABASE_URL = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
+import { readFileSync } from "fs";
+import { join } from "path";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { experiences } from "@/db/schema";
@@ -11,7 +13,7 @@ import { contentHashOf, insertExperience } from "@/lib/commons/service";
 const FIXTURE_LIMITATION =
   "Demo fixture written to show the record format; it is not a real observation and must not be relied on.";
 
-const fixtures = [
+const hardcodedFixtures = [
   {
     subject: {
       name: "El Cerrito DMV motorcycle skills test",
@@ -64,6 +66,14 @@ const fixtures = [
     permission: { basis: "explicit_user_approval", user_reviewed_final_text: true },
   },
 ];
+
+const jsonlPath = join(import.meta.dirname, "../data/experiences.jsonl");
+const jsonlFixtures = readFileSync(jsonlPath, "utf-8")
+  .split("\n")
+  .filter(Boolean)
+  .map((line) => JSON.parse(line));
+
+const fixtures = [...hardcodedFixtures, ...jsonlFixtures];
 
 async function main() {
   for (const raw of fixtures) {
