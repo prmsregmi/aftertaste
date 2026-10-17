@@ -48,6 +48,25 @@ describe("evaluateSubmission", () => {
     expect(result.redacted.limitations).not.toMatch(/jane|555|A12345678/);
   });
 
+  it("redacts personal data in every stored field, including subject and context keys", () => {
+    const result = evaluateSubmission({
+      ...jacket,
+      subject: { ...jacket.subject, location: "call 510-555-1234" },
+      context: { "owner jane.doe@example.com": "S" },
+      measurements: [{ metric: "contact", value: "1", unit: "a@b.co" }],
+    });
+    expect(result.status).toBe("rejected");
+    expect(JSON.stringify(result.redacted)).not.toMatch(/555|jane|a@b\.co/);
+  });
+
+  it("treats tracking links in evidence URLs as spam", () => {
+    const result = evaluateSubmission({
+      ...jacket,
+      evidence: [{ kind: "receipt", description: "store page", url: "https://shop.example/j?ref=aff1" }],
+    });
+    expect(result.reasonCodes).toContain("promotional_spam");
+  });
+
   it("does not mistake ordinary words after 'order' for an order ID", () => {
     expect(evaluateSubmission({ ...jacket, use_case: "Ordered online in order tracking season" }).status).toBe(
       "published",

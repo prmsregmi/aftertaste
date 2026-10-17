@@ -58,21 +58,22 @@ const TRACKING_LINK =
 const UNIVERSAL_CLAIM =
   /\b(?:every|all|always|never|nobody|everyone)\b[^.!?]{0,60}\b(?:defective|broken|scam|perfect|best|worst|fake|amazing|terrible)\b/i;
 
-// Every free-text field an agent can fill, so redaction and spam checks see the whole payload.
+function mapStrings<T>(value: T, fn: (text: string) => string): T {
+  if (typeof value === "string") return fn(value) as T;
+  if (Array.isArray(value)) return value.map((v) => mapStrings(v, fn)) as T;
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, mapStrings(v, fn)])) as T;
+  }
+  return value;
+}
+
+// Walks every string value (plus the free-text context keys) so redaction and spam checks
+// cannot be bypassed through a field that was added to the schema later.
 function mapText(s: Submission, fn: (text: string) => string): Submission {
+  const mapped = mapStrings(s, fn);
   return {
-    ...s,
-    subject: { ...s.subject, name: fn(s.subject.name) },
-    summary: fn(s.summary),
-    variant: s.variant && fn(s.variant),
-    observations: s.observations.map((o) => ({ ...o, observation: fn(o.observation) })),
-    measurements: s.measurements?.map((m) => ({ ...m, value: fn(m.value) })),
-    context: s.context && Object.fromEntries(Object.entries(s.context).map(([k, v]) => [k, fn(v)])),
-    use_case: s.use_case && fn(s.use_case),
-    method: s.method && fn(s.method),
-    limitations: fn(s.limitations),
-    evidence: s.evidence?.map((e) => ({ ...e, description: fn(e.description) })),
-    permission: { ...s.permission, note: s.permission.note && fn(s.permission.note) },
+    ...mapped,
+    context: mapped.context && Object.fromEntries(Object.entries(mapped.context).map(([k, v]) => [fn(k), v])),
   };
 }
 

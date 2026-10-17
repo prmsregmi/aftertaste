@@ -24,7 +24,8 @@ type Identity = { contributorId?: string; label?: string; invalidToken?: boolean
 
 function actorOf(ctx: Ctx): Actor & { invalidToken: boolean } {
   const req = ctx.http?.req;
-  const ip = (req && (ipAddress(req) ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim())) || "unknown";
+  // Platform-provided IP only; client-supplied forwarding headers are spoofable. Missing IPs share one bucket.
+  const ip = (req && ipAddress(req)) || "unknown";
   const identity = (ctx.http?.authInfo?.extra ?? {}) as Identity;
   return {
     contributorId: identity.contributorId ?? null,

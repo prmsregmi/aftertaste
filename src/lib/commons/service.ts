@@ -4,7 +4,7 @@ import { revalidateTag } from "next/cache";
 import { getDb } from "@/db";
 import { contributors, experiences, flags, reviewEvents, subjects } from "@/db/schema";
 import type { Submission } from "./contracts";
-import { allText, evaluateSubmission, type Status } from "./evaluate";
+import { evaluateSubmission, type Status } from "./evaluate";
 
 export const CACHE_TAG = "commons";
 
@@ -138,9 +138,7 @@ export async function insertExperience(s: Submission, contentHash: string, opts:
     contentHash,
     isDemoFixture: opts.isDemoFixture ?? false,
     isPublicSample: opts.isPublicSample ?? false,
-    searchText: [subject.name, s.subject.brand, s.subject.location, ...(s.subject.aliases ?? []), allText(s)]
-      .filter(Boolean)
-      .join("\n"),
+    searchText: searchTextOf(s),
   });
   await db.insert(reviewEvents).values({
     experienceId: id,
@@ -150,6 +148,26 @@ export async function insertExperience(s: Submission, contentHash: string, opts:
     requestId: opts.requestId,
   });
   return { id, subject };
+}
+
+// Descriptive fields only, so enum values like "human_firsthand" don't match every query.
+function searchTextOf(s: Submission) {
+  return [
+    s.subject.name,
+    s.subject.brand,
+    s.subject.location,
+    ...(s.subject.aliases ?? []),
+    s.summary,
+    s.variant,
+    ...s.observations.flatMap((o) => [o.aspect, o.observation]),
+    ...(s.measurements ?? []).flatMap((m) => [m.metric, m.value, m.unit]),
+    ...Object.entries(s.context ?? {}).flat(),
+    s.use_case,
+    s.method,
+    s.limitations,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export function contentHashOf(s: Submission) {
@@ -209,7 +227,7 @@ export async function submitExperience(input: Submission, actor: Actor) {
     const { rows } = await db.execute<{ id: string }>(sql`
       select id from experiences
       where status = 'published' and submitter_key <> ${key}
-        and similarity(search_text, ${allText(redacted)}) > 0.8
+        and similarity(search_text, ${searchTextOf(redacted)}) > 0.8
       limit 1`);
     if (rows[0]) {
       hold(
