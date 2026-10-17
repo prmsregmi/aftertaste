@@ -29,28 +29,6 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Plain GET form so it works without JavaScript and for browsing agents. */}
-        <form
-          action="/subjects"
-          method="get"
-          role="search"
-          className="mt-[1.4em] flex max-w-[28em] items-baseline gap-4 border-b border-foreground/25 focus-within:border-foreground"
-        >
-          <label htmlFor="subject-q" className="sr-only">
-            Search subjects
-          </label>
-          <input
-            id="subject-q"
-            name="q"
-            type="search"
-            placeholder="e.g. Canyon jacket, DMV skills test, mcp-handler"
-            className="min-w-0 flex-1 bg-transparent py-1 outline-none placeholder:text-muted-foreground"
-          />
-          <button type="submit" className={cn(link, "rounded-sm focus-visible:outline-2 focus-visible:outline-ring")}>
-            Search
-          </button>
-        </form>
-
         <p className="mt-[1.4em] flex gap-6">
           <Link href="/subjects" className={link}>
             Subjects
