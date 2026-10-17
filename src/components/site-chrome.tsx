@@ -14,13 +14,13 @@ export function SiteHeader() {
           {SITE_NAME}
         </Link>
         <nav aria-label="Primary" className="flex items-center gap-4 text-sm">
-          <Link href="/subjects" className="text-muted-foreground hover:text-foreground">
+          <Link href="/subjects" className="text-muted-foreground hover:text-foreground human:hidden">
             Subjects
           </Link>
-          <Link href="/docs" className="text-muted-foreground hover:text-foreground">
+          <Link href="/docs" className="text-muted-foreground hover:text-foreground human:hidden">
             Docs
           </Link>
-          <a href="/llms.txt" className="text-muted-foreground hover:text-foreground">
+          <a href="/llms.txt" className="text-muted-foreground hover:text-foreground human:hidden">
             llms.txt
           </a>
           <ModeToggle />
@@ -32,7 +32,7 @@ export function SiteHeader() {
 
 export function SiteFooter() {
   return (
-    <footer className="mt-16 border-t border-border">
+    <footer className="mt-16 border-t border-border human:hidden">
       <p className="mx-auto max-w-5xl px-4 py-6 text-sm text-muted-foreground sm:px-6">
         Self-reported and screened, never certified true.
       </p>

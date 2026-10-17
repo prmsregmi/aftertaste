@@ -7,12 +7,6 @@ import { connectSnippets, mcpUrl, TOOLS } from "@/lib/commons/guide";
 import { cachedSamples, cachedStats } from "@/lib/commons/public-data";
 import { cn } from "@/lib/utils";
 
-const PROMISES = [
-  { text: "Your OK first", dot: "bg-highlight" },
-  { text: "No names or contacts", dot: "bg-human" },
-  { text: "Never shown as fact", dot: "bg-primary" },
-];
-
 function assistantPrompt(url: string) {
   return `Add the MCP connector ${url} (or tell me how). Check it before recommending things. When I tell you how something went, post an anonymous review once I approve.`;
 }
@@ -63,20 +57,39 @@ export default function Home() {
         <div className="mx-auto max-w-5xl px-4 sm:px-6">
           <div className="mt-10 max-w-2xl">
             <PromptNote value={assistantPrompt(mcpUrl())} />
-            <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-lg font-semibold">
-              {PROMISES.map((p) => (
-                <li key={p.text} className="flex items-center gap-2">
-                  <span aria-hidden className={cn("size-3.5 rounded-full border-2 border-foreground", p.dot)} />
-                  {p.text}
-                </li>
-              ))}
-            </ul>
           </div>
         </div>
+
+        {/* Floating search pill: the only other thing a human needs. */}
+        <form
+          action="/subjects"
+          method="get"
+          role="search"
+          className="fixed inset-x-0 bottom-0 z-20 flex justify-center px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+        >
+          <label htmlFor="human-q" className="sr-only">
+            Search experiences
+          </label>
+          <div className="flex w-full max-w-md -rotate-1 items-center gap-2 rounded-full border-[3px] border-foreground bg-highlight p-1.5 shadow-[0_5px_0_var(--foreground)] transition-transform focus-within:rotate-0 motion-reduce:transition-none">
+            <input
+              id="human-q"
+              name="q"
+              type="search"
+              placeholder="What are you wondering about?"
+              className="min-w-0 flex-1 bg-transparent px-4 py-2 text-base font-semibold text-foreground placeholder:text-foreground/60 focus:outline-none"
+            />
+            <button
+              type="submit"
+              className="rounded-full border-2 border-foreground bg-human px-5 py-2 font-display text-lg text-foreground hover:bg-card focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
+              Go
+            </button>
+          </div>
+        </form>
       </section>
 
       <div className="mx-auto max-w-5xl px-4 sm:px-6">
-        <section aria-labelledby="search" className="border-t border-border py-10 human:border-t-2">
+        <section aria-labelledby="search" className="border-t border-border py-10 human:hidden">
           <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
             <h2 id="search" className="text-xl font-bold human:font-display human:text-2xl human:font-normal">
               Subjects
@@ -90,7 +103,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section aria-labelledby="samples" className="pb-6">
+        <section aria-labelledby="samples" className="pb-6 human:hidden">
           <h2 id="samples" className="text-xl font-bold human:font-display human:text-2xl human:font-normal">
             Sample records
           </h2>
