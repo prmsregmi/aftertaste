@@ -16,6 +16,9 @@ export const SOURCE_TYPES = [
   "secondhand_summary",
 ] as const;
 
+// Keys of free-form maps are short snake_case labels, so they can't carry free text.
+const labelKey = z.string().regex(/^[a-z][a-z0-9_]{0,39}$/, "Use a short snake_case label like usual_size");
+
 export const subjectInput = z.object({
   name: z
     .string()
@@ -76,13 +79,13 @@ export const submissionShape = {
     .optional()
     .describe("Measured outcomes for agent experiments: durations, token counts, error rates, scores."),
   context: z
-    .record(z.string().min(1).max(40), z.string().min(1).max(200))
+    .record(labelKey, z.string().min(1).max(200))
     .optional()
     .describe(
       "Conditions of the experience itself, e.g. {size_worn: 'S'} or {os: 'macOS 26', node: '22.22'}. No personal identifiers.",
     ),
   preferences: z
-    .record(z.string().min(1).max(40), z.string().min(1).max(80))
+    .record(labelKey, z.string().min(1).max(80))
     .refine((p) => Object.keys(p).length <= 8, "At most 8 preferences")
     .optional()
     .describe(

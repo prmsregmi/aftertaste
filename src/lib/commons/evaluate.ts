@@ -67,14 +67,14 @@ function mapStrings<T>(value: T, fn: (text: string) => string): T {
   return value;
 }
 
-// Walks every string value (plus the free-text context keys) so redaction and spam checks
+const mapKeys = (r: Record<string, string> | undefined, fn: (text: string) => string) =>
+  r && Object.fromEntries(Object.entries(r).map(([k, v]) => [fn(k), v]));
+
+// Walks every string value, plus the keys of the free-form maps, so redaction and spam checks
 // cannot be bypassed through a field that was added to the schema later.
 function mapText(s: Submission, fn: (text: string) => string): Submission {
   const mapped = mapStrings(s, fn);
-  return {
-    ...mapped,
-    context: mapped.context && Object.fromEntries(Object.entries(mapped.context).map(([k, v]) => [fn(k), v])),
-  };
+  return { ...mapped, context: mapKeys(mapped.context, fn), preferences: mapKeys(mapped.preferences, fn) };
 }
 
 export function allText(s: Submission): string {

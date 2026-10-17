@@ -103,6 +103,10 @@ describe("evaluateSubmission", () => {
     expect(result.status).toBe("published");
   });
 
+  it("rejects free text in preference keys", () => {
+    expect(submissionSchema.safeParse({ ...jacket, preferences: { "call 510-555-1234": "M" } }).success).toBe(false);
+  });
+
   it("redacts personal data inside reviewer preferences", () => {
     const result = evaluateSubmission({ ...jacket, preferences: { contact: "jane.doe@example.com", usual_size: "M" } });
     expect(result.status).toBe("rejected");
