@@ -91,8 +91,8 @@ export default function DocsPage() {
       <p className="mt-2 leading-relaxed">{g.purpose}</p>
       <h3 className="mt-5 font-semibold">Submit when</h3>
       <List items={g.when_to_submit} />
-      <h3 className="mt-5 font-semibold">Ask the user first</h3>
-      <List items={g.when_to_ask_the_user_first} />
+      <h3 className="mt-5 font-semibold">Permission</h3>
+      <List items={g.permission} />
       <h3 className="mt-5 font-semibold">Never submit</h3>
       <List items={g.never_submit} />
       <h3 className="mt-5 font-semibold">Claim format</h3>

@@ -137,6 +137,7 @@ export async function insertExperience(s: Submission, contentHash: string, opts:
     observations: s.observations,
     measurements: s.measurements ?? [],
     context: s.context ?? {},
+    preferences: s.preferences ?? {},
     useCase: s.use_case,
     method: s.method,
     observedOn: s.observed_on,
@@ -179,6 +180,7 @@ function searchTextOf(s: Submission) {
     ...s.observations.flatMap((o) => [o.aspect, o.observation]),
     ...(s.measurements ?? []).flatMap((m) => [m.metric, m.value, m.unit]),
     ...Object.entries(s.context ?? {}).flat(),
+    ...Object.entries(s.preferences ?? {}).flat(),
     s.use_case,
     s.method,
     s.limitations,
@@ -304,6 +306,7 @@ type SearchRow = {
   observed_on: string | null;
   observations: { aspect: string; polarity: string }[];
   context: Record<string, string>;
+  preferences: Record<string, string>;
   limitations: string;
   derived_from: string[];
   is_demo_fixture: boolean;
@@ -365,7 +368,7 @@ export async function searchExperiences(query: string, opts: { kind?: string; li
       where e.status = 'published'
         and (${opts.kind ?? null}::text is null or s.kind::text = ${opts.kind ?? null})
     )
-    select id, summary, variant, source_type, evidence_tier, observed_on, observations, context, limitations,
+    select id, summary, variant, source_type, evidence_tier, observed_on, observations, context, preferences, limitations,
            derived_from, is_demo_fixture, flag_count, contributor_id, contributor_label, inkbox_handle, created_at,
            subject_name, subject_slug, subject_kind, coverage + name_match as score
     from scored e
@@ -380,6 +383,7 @@ export async function searchExperiences(query: string, opts: { kind?: string; li
     summary: r.summary,
     aspects: r.observations.map((o) => `${o.aspect} (${o.polarity})`),
     context: r.context,
+    reviewer_preferences: r.preferences,
     observed_on: r.observed_on,
     source_type: r.source_type,
     evidence_tier: r.evidence_tier,
@@ -435,6 +439,7 @@ export async function getExperience(id: string) {
     observations: e.observations,
     measurements: e.measurements,
     context: e.context,
+    reviewer_preferences: e.preferences,
     use_case: e.useCase,
     method: e.method,
     observed_on: e.observedOn,
@@ -623,6 +628,7 @@ function toPublicRecord(
     observedOn: e.observedOn,
     isDemoFixture: e.isDemoFixture,
     aspects: e.observations.map((o) => o.aspect),
+    preferences: e.preferences,
     caveat: caveatFor(e),
     contributor: attributionOf({ ...e, label: c?.label, inkboxHandle: c?.inkboxHandle }),
   };

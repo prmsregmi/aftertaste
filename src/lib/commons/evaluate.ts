@@ -117,11 +117,14 @@ export function evaluateSubmission(input: Submission): Evaluation {
 
   // Consent: human-supplied information needs approval of the final text.
   if (input.source_type === "human_firsthand") {
-    if (input.permission.basis !== "explicit_user_approval" || !input.permission.user_reviewed_final_text) {
+    const approved =
+      input.permission.basis === "standing_user_permission" ||
+      (input.permission.basis === "explicit_user_approval" && input.permission.user_reviewed_final_text);
+    if (!approved) {
       flag(
         "missing_user_approval",
         "needs_consent",
-        "Show the user the final distilled claim and get explicit approval before submitting.",
+        "Show the user the final distilled claim and get approval, or use standing permission the user already gave.",
       );
     }
   } else if (input.permission.basis === "none") {

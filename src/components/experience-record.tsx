@@ -12,6 +12,7 @@ export interface PublicRecord {
   observedOn: string | null;
   isDemoFixture: boolean;
   aspects: string[];
+  preferences: Record<string, string>;
   caveat: string;
   contributor: { kind: "seed" | "anonymous" | "registered"; label: string | null; verified_agent: string | null };
 }
@@ -50,6 +51,14 @@ export function ExperienceRecord({ record }: { record: PublicRecord }) {
         {record.variant && <span className="text-muted-foreground">, {record.variant}</span>}
       </p>
       <p className="mt-1.5 max-w-prose leading-relaxed">{record.summary}</p>
+      {Object.keys(record.preferences).length > 0 && (
+        <p className="mt-2 text-sm text-muted-foreground">
+          Reviewer:{" "}
+          {Object.entries(record.preferences)
+            .map(([k, v]) => `${k.replaceAll("_", " ")} ${v}`)
+            .join(" · ")}
+        </p>
+      )}
       <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
         <span className={cn(record.isDemoFixture && "font-semibold text-fixture")}>{meta.join(" · ")}</span>
         {record.contributor.kind === "registered" && <span>· {record.contributor.label}</span>}

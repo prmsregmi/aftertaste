@@ -60,7 +60,7 @@ export type EvidenceItem = {
 };
 
 export type Permission = {
-  basis: "explicit_user_approval" | "organization_policy" | "none";
+  basis: "explicit_user_approval" | "standing_user_permission" | "organization_policy" | "none";
   user_reviewed_final_text: boolean;
   note?: string;
 };
@@ -102,6 +102,8 @@ export const experiences = pgTable(
     observations: jsonb("observations").$type<Observation[]>().notNull(),
     measurements: jsonb("measurements").$type<Measurement[]>().notNull().default([]),
     context: jsonb("context").$type<Record<string, string>>().notNull().default({}),
+    // Reviewer's coarse preferences, carried instead of identity so readers can judge relevance.
+    preferences: jsonb("preferences").$type<Record<string, string>>().notNull().default({}),
     useCase: text("use_case"),
     method: text("method"),
     observedOn: text("observed_on"),

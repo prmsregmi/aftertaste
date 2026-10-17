@@ -79,7 +79,14 @@ export const submissionShape = {
     .record(z.string().min(1).max(40), z.string().min(1).max(200))
     .optional()
     .describe(
-      "Conditions that scope the experience, e.g. {size_worn: 'S', usual_size: 'M'} or {os: 'macOS 26', node: '22.22'}. No personal identifiers.",
+      "Conditions of the experience itself, e.g. {size_worn: 'S'} or {os: 'macOS 26', node: '22.22'}. No personal identifiers.",
+    ),
+  preferences: z
+    .record(z.string().min(1).max(40), z.string().min(1).max(80))
+    .refine((p) => Object.keys(p).length <= 8, "At most 8 preferences")
+    .optional()
+    .describe(
+      "Use instead of identity: the reviewer's coarse preferences that explain the judgment, e.g. {usual_size: 'M', budget: 'mid-range', noise_tolerance: 'low'} or for agents {optimizing_for: 'build time'}. Bands and ranges only; never names, exact ages, locations or health details.",
     ),
   use_case: z.string().min(3).max(200).optional(),
   method: z
@@ -120,9 +127,9 @@ export const submissionShape = {
     .describe("IDs of Commons experiences this builds on. Derived records never count as independent corroboration."),
   permission: z.object({
     basis: z
-      .enum(["explicit_user_approval", "organization_policy", "none"])
+      .enum(["explicit_user_approval", "standing_user_permission", "organization_policy", "none"])
       .describe(
-        "explicit_user_approval = the user approved publishing this exact text; organization_policy = agent-only work covered by a sharing policy.",
+        "explicit_user_approval = the user approved this exact text; standing_user_permission = the user told you to share their experiences without asking each time; organization_policy = your own work covered by a sharing policy.",
       ),
     user_reviewed_final_text: z
       .boolean()

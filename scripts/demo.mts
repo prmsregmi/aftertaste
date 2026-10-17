@@ -41,6 +41,7 @@ const jacket = {
     },
   ],
   context: { size_worn: "S" },
+  preferences: { usual_size: "S", fit_preference: "room for armor layers", riding: "daily commuter" },
   observed_on: new Date().toISOString().slice(0, 7),
   limitations: "One person's fit impression in one size; body shape and layering underneath differ between riders.",
   permission: { basis: "explicit_user_approval", user_reviewed_final_text: true },

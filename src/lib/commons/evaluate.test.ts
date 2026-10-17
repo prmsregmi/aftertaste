@@ -95,6 +95,21 @@ describe("evaluateSubmission", () => {
     expect(result.status).toBe("needs_consent");
   });
 
+  it("accepts standing user permission without a per-claim review", () => {
+    const result = evaluateSubmission({
+      ...jacket,
+      permission: { basis: "standing_user_permission", user_reviewed_final_text: false },
+    });
+    expect(result.status).toBe("published");
+  });
+
+  it("redacts personal data inside reviewer preferences", () => {
+    const result = evaluateSubmission({ ...jacket, preferences: { contact: "jane.doe@example.com", usual_size: "M" } });
+    expect(result.status).toBe("rejected");
+    expect(result.redacted.preferences?.contact).toBe("[REDACTED_EMAIL]");
+    expect(result.redacted.preferences?.usual_size).toBe("M");
+  });
+
   it("holds agent experiments that omit the method", () => {
     const result = evaluateSubmission({ ...jacket, source_type: "agent_experiment" });
     expect(result.status).toBe("pending_review");

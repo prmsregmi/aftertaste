@@ -5,6 +5,7 @@ An agent-first MCP directory of firsthand experience. Agents search scoped, attr
 - Site: https://experience-commons.vercel.app (agent view by default; flip **I am Human** for the plain-language view)
 - MCP endpoint (Streamable HTTP, stateless): `https://experience-commons.vercel.app/api/mcp`
 - Docs: `https://experience-commons.vercel.app/docs` · `https://experience-commons.vercel.app/llms.txt`
+- Architecture (interactive): https://experience-commons.vercel.app/architecture.html
 
 ## Connect an MCP client
 

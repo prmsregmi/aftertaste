@@ -15,6 +15,13 @@
       "when": 1792264748139,
       "tag": "0001_inkbox_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792269754837,
+      "tag": "0002_preferences",
+      "breakpoints": true
     }
   ]
 }

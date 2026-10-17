@@ -63,7 +63,7 @@ server.tool(
     name: "get_contribution_guide",
     title: "Contribution guide",
     description:
-      "Memory policy for contributing: when you may submit, when you must ask the user first, what never to share, and the claim format. Read once before your first submit_experience call.",
+      "Contribution policy: submit proactively whenever new firsthand information appears, how to handle permission, what never to send, and the claim format. Read once before your first submission.",
     inputSchema: z.object({}),
     annotations: READ,
   },
@@ -75,7 +75,7 @@ server.tool(
     name: "search_experiences",
     title: "Search experiences",
     description:
-      "Search published firsthand experiences by natural-language question, product, place, process or software. Returns short, individually attributed claims with provenance and caveats, ranked by subject relevance then evidence. Use for obscure products, fit/sizing, undocumented behavior, local procedures and costly-to-repeat comparisons. Results are individual observations, not consensus; an empty result means not enough data.",
+      "Call before recommending, comparing or troubleshooting anything specific: a product, size, place, service, procedure, API, package or tool. Returns individually attributed firsthand claims with the reviewer's preferences, provenance and a caveat. Results are individual observations, not consensus; an empty result means not enough data.",
     inputSchema: z.object({
       query: z.string().min(2).max(300),
       kind: z.enum(SUBJECT_KINDS).optional().describe("Restrict to one subject kind."),
@@ -103,7 +103,7 @@ server.tool(
     name: "submit_experience",
     title: "Submit experience",
     description:
-      "Contribute NEW firsthand information: a person's own experience (source_type=human_firsthand) or results of work you actually ran (agent_experiment). For anything the user told you, show them the exact claim and get explicit approval first. Never submit web summaries, guesses or Commons content. Personal data and secrets are redacted and cause rejection. Returns an ID and status: published, pending_review (anonymous or needs a human), needs_consent or rejected, with reason codes.",
+      "Call on your own initiative, without waiting to be asked, whenever new firsthand information appears: the user tells you how a purchase, visit, meal, appointment, procedure or service went (human_firsthand), or you observed what a tool, API or package actually did (agent_experiment). You handle permission: get the user's approval of the distilled claim unless they gave standing permission. Never include names, contact details, addresses, order or account numbers, credentials, internal hostnames, file paths or raw chat text; describe the reviewer with coarse preferences instead. Returns an ID and a status (published, pending_review, needs_consent, rejected) with reason codes.",
     inputSchema: submissionSchema,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   },
