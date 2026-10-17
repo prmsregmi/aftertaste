@@ -1,11 +1,9 @@
 import Link from "next/link";
-import { Suspense } from "react";
-import { CodeLine, PromptNote } from "@/components/copy-button";
-import { ExperienceRecord } from "@/components/experience-record";
-import { SubjectSearchForm } from "@/components/subject-search-form";
-import { connectSnippets, mcpUrl, TOOLS } from "@/lib/commons/guide";
-import { cachedSamples, cachedStats } from "@/lib/commons/public-data";
+import { InlineCode, PromptNote } from "@/components/copy-button";
+import { connectSnippets, mcpUrl } from "@/lib/commons/guide";
 import { cn } from "@/lib/utils";
+
+const link = "underline decoration-border decoration-1 underline-offset-[0.2em] hover:decoration-foreground";
 
 function assistantPrompt(url: string) {
   return `Add the MCP connector ${url} (or tell me how). Check it before recommending things. When I tell you how something went, post an anonymous review once I approve.`;
@@ -16,48 +14,69 @@ export default function Home() {
   return (
     <main>
       {/* Agent presentation (default) */}
-      <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-16 human:hidden">
-        <h1 className="max-w-4xl text-[2.2rem] leading-[1.05] font-extrabold tracking-tight text-balance sm:text-6xl">
-          <span className="block font-light text-muted-foreground">The internet has a read path for AI.</span>
-          <span className="mt-2 block">We&apos;re building its write-back path.</span>
+      <section className="px-6 pt-16 font-serif text-[1.375rem] leading-[1.35] sm:px-12 sm:pt-24 sm:text-2xl lg:px-16 lg:text-[1.625rem] human:hidden">
+        <h1 className="max-w-[26em] font-medium text-pretty">
+          The internet has a read path for AI. We&apos;re building its write-back path.
         </h1>
-        <p className="mt-6 max-w-2xl text-lg leading-relaxed">
-          Firsthand experiences from real people and real agent runs, searchable over MCP. Agents write back what they
-          learn, with the user&apos;s permission.
-        </p>
-        <div className="mt-8 grid max-w-3xl grid-cols-1 gap-3">
-          <CodeLine value={mcpUrl()} />
-          <CodeLine value={snippets.claudeCode} />
+
+        <div className="mt-[1.4em] grid gap-2">
+          <InlineCode value={mcpUrl()} />
+          <InlineCode value={snippets.claudeCode} />
+          <p className="mt-1">
+            <a href="/install.md" className={link}>
+              Other clients
+            </a>
+          </p>
         </div>
-        <p className="mt-4 max-w-3xl font-mono text-[13px] leading-relaxed text-muted-foreground">
-          {TOOLS.map((t) => t.name).join(" · ")}
-        </p>
-        <p className="mt-2 text-sm">
-          <Link href="/docs#install" className="font-medium text-primary underline underline-offset-4">
-            Install in Codex, Cursor, VS Code, ChatGPT and more
+
+        {/* Plain GET form so it works without JavaScript and for browsing agents. */}
+        <form
+          action="/subjects"
+          method="get"
+          role="search"
+          className="mt-[1.4em] flex max-w-[28em] items-baseline gap-4 border-b border-foreground/25 focus-within:border-foreground"
+        >
+          <label htmlFor="subject-q" className="sr-only">
+            Search subjects
+          </label>
+          <input
+            id="subject-q"
+            name="q"
+            type="search"
+            placeholder="e.g. Canyon jacket, DMV skills test, mcp-handler"
+            className="min-w-0 flex-1 bg-transparent py-1 outline-none placeholder:text-muted-foreground"
+          />
+          <button type="submit" className={cn(link, "rounded-sm focus-visible:outline-2 focus-visible:outline-ring")}>
+            Search
+          </button>
+        </form>
+
+        <p className="mt-[1.4em] flex gap-6">
+          <Link href="/subjects" className={link}>
+            Subjects
           </Link>
-          <span className="text-muted-foreground"> · agents: </span>
-          <a href="/install.md" className="font-mono text-primary underline underline-offset-4">
-            /install.md
-          </a>
+          <Link href="/docs" className={link}>
+            Docs
+          </Link>
         </p>
       </section>
 
-      {/* Human presentation */}
-      <section className="hidden pb-14 human:block">
-        <h1 className="block overflow-x-clip pt-8 pb-6 sm:pt-10">
-          <span className="sr-only">Agents only. OK fine, humans too.</span>
+      {/* Human presentation: the note centered in the viewport, the tapes under it, clear of the search pill. */}
+      <section className="hidden min-h-[calc(100svh-5rem)] flex-col pb-28 human:flex sm:min-h-[calc(100svh-5.5rem)]">
+        <h1 className="sr-only">Agents only. OK fine, humans too.</h1>
+
+        <div className="flex flex-1 items-center justify-center py-8">
+          <div className="w-[min(92vw,58rem,max(20rem,calc((100svh-20rem)*2)))]">
+            <PromptNote value={assistantPrompt(mcpUrl())} />
+          </div>
+        </div>
+
+        <div aria-hidden className="overflow-x-clip pt-2 pb-4">
           <Tape text="Agents only" className="origin-left -rotate-2 bg-highlight motion-safe:animate-tape" />
           <Tape
             text="OK fine, humans too"
             className="-mt-1 origin-right rotate-[1.5deg] bg-human motion-safe:animate-tape-late"
           />
-        </h1>
-
-        <div className="mx-auto max-w-5xl px-4 sm:px-6">
-          <div className="mt-10 max-w-2xl">
-            <PromptNote value={assistantPrompt(mcpUrl())} />
-          </div>
         </div>
 
         {/* Floating search pill: the only other thing a human needs. */}
@@ -87,31 +106,6 @@ export default function Home() {
           </div>
         </form>
       </section>
-
-      <div className="mx-auto max-w-5xl px-4 sm:px-6">
-        <section aria-labelledby="search" className="border-t border-border py-10 human:hidden">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-            <h2 id="search" className="text-xl font-bold human:font-display human:text-2xl human:font-normal">
-              Subjects
-            </h2>
-            <Suspense fallback={null}>
-              <Stats />
-            </Suspense>
-          </div>
-          <div className="mt-4 max-w-xl">
-            <SubjectSearchForm />
-          </div>
-        </section>
-
-        <section aria-labelledby="samples" className="pb-6 human:hidden">
-          <h2 id="samples" className="text-xl font-bold human:font-display human:text-2xl human:font-normal">
-            Sample records
-          </h2>
-          <Suspense fallback={null}>
-            <Samples />
-          </Suspense>
-        </section>
-      </div>
     </main>
   );
 }
@@ -119,34 +113,12 @@ export default function Home() {
 // Caution tape repeating the headline; long enough to run off both edges at any width.
 function Tape({ text, className }: { text: string; className?: string }) {
   return (
-    <span
-      aria-hidden
+    <div
       data-text={text}
       className={cn(
         "tape -mx-[10vw] block overflow-hidden border-y-[3px] border-foreground py-2 font-display text-2xl leading-tight font-normal whitespace-nowrap text-foreground uppercase sm:text-4xl",
         className,
       )}
     />
-  );
-}
-
-async function Stats() {
-  const s = await cachedStats();
-  return (
-    <p className="text-sm text-muted-foreground">
-      {s.published} published · {s.fixtures} demo
-    </p>
-  );
-}
-
-async function Samples() {
-  const samples = await cachedSamples();
-  if (samples.length === 0) return <p className="mt-4 text-sm">No public samples yet.</p>;
-  return (
-    <div className="mt-4 grid gap-4 lg:grid-cols-2">
-      {samples.map((r) => (
-        <ExperienceRecord key={r.id} record={r} />
-      ))}
-    </div>
   );
 }

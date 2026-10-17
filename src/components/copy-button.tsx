@@ -14,6 +14,7 @@ interface CopyButtonProps {
   copiedLabel?: string;
   className?: string;
   size?: "sm" | "lg";
+  variant?: "outline" | "link";
 }
 
 function selectContents(el: HTMLElement) {
@@ -24,7 +25,15 @@ function selectContents(el: HTMLElement) {
   selection?.addRange(range);
 }
 
-export function CopyButton({ value, targetRef, label = "Copy", copiedLabel = "Copied", className, size = "sm" }: CopyButtonProps) {
+export function CopyButton({
+  value,
+  targetRef,
+  label = "Copy",
+  copiedLabel = "Copied",
+  className,
+  size = "sm",
+  variant = "outline",
+}: CopyButtonProps) {
   const [status, setStatus] = useState<Status>("idle");
   const [shortcut, setShortcut] = useState("Ctrl+C");
 
@@ -44,7 +53,7 @@ export function CopyButton({ value, targetRef, label = "Copy", copiedLabel = "Co
   const text = { idle: label, copied: copiedLabel, selected: `Selected, press ${shortcut}` }[status];
 
   return (
-    <Button type="button" variant="outline" size={size} onClick={copy} className={className}>
+    <Button type="button" variant={variant} size={size} onClick={copy} className={className}>
       {text}
       <span aria-live="polite" className="sr-only">
         {status === "copied" && "Copied to clipboard."}
@@ -69,31 +78,52 @@ export function CodeLine({ value }: { value: string }) {
   );
 }
 
-// A note torn from a ruled notebook, holding the prompt a person pastes into their assistant.
-export function PromptNote({ value }: { value: string }) {
-  const ref = useRef<HTMLParagraphElement>(null);
+// Code set inline in running text, with a quiet text-style copy action.
+export function InlineCode({ value }: { value: string }) {
+  const ref = useRef<HTMLElement>(null);
   return (
-    <figure
-      className={cn(
-        "relative rounded-sm bg-white px-5 pt-8 pb-6 text-foreground shadow-[0_18px_40px_-18px_rgb(20_33_26/0.5)] sm:-rotate-[0.6deg] sm:pr-8 sm:pl-16",
-        // Ruled lines every 2rem, matching the text's line height, nudged up so words sit on them.
-        "bg-[repeating-linear-gradient(to_bottom,transparent_0_calc(2rem-1px),var(--rule)_calc(2rem-1px)_2rem)] bg-position-[0_-0.45rem]",
-        // Red margin line.
-        "sm:after:absolute sm:after:inset-y-0 sm:after:left-11 sm:after:w-0.5 sm:after:bg-human/70",
-        // A strip of tape holding the note to the page.
-        "before:absolute before:-top-3 before:left-1/2 before:h-7 before:w-28 before:-translate-x-1/2 before:rotate-3 before:bg-highlight/85",
-      )}
-    >
-      <p ref={ref} className="text-[1.05rem] leading-8 whitespace-pre-line wrap-anywhere">
+    <p className="flex flex-wrap items-baseline gap-x-4">
+      <code ref={ref} className="min-w-0 font-mono text-[0.7em] wrap-anywhere">
         {value}
-      </p>
+      </code>
       <CopyButton
         value={value}
         targetRef={ref}
-        label="Copy for your AI"
-        size="lg"
-        className="mt-6 h-12 w-full rounded-full border-2 border-foreground bg-human px-6 text-base font-bold text-foreground shadow-[0_4px_0_var(--foreground)] hover:bg-highlight active:translate-y-1 active:shadow-none sm:w-auto"
+        variant="link"
+        className="h-auto px-0 font-sans text-sm text-muted-foreground underline decoration-border underline-offset-4 hover:text-foreground hover:decoration-foreground"
       />
-    </figure>
+    </p>
+  );
+}
+
+// A note torn from a ruled notebook, holding the prompt a person pastes into their assistant.
+// Everything inside is sized in em, and the em follows the note's width, so the text fills it at any size.
+export function PromptNote({ value }: { value: string }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  return (
+    <div className="@container w-full">
+      <figure
+        className={cn(
+          "relative rounded-sm bg-white px-[1.1em] pt-[1.9em] pb-[1.2em] text-[clamp(1.15rem,2.2cqi+0.75rem,1.8rem)] text-foreground shadow-[0_18px_40px_-18px_rgb(20_33_26/0.5)] @lg:-rotate-[0.6deg] @lg:pr-[1.5em] @lg:pl-[3em]",
+          // Ruled lines one line-height apart, nudged up so words sit on them.
+          "bg-[repeating-linear-gradient(to_bottom,transparent_0_calc(1.9em-1px),var(--rule)_calc(1.9em-1px)_1.9em)] bg-position-[0_-0.45em]",
+          // Red margin line.
+          "@lg:after:absolute @lg:after:inset-y-0 @lg:after:left-[2.2em] @lg:after:w-0.5 @lg:after:bg-human/70",
+          // A strip of tape holding the note to the page.
+          "before:absolute before:-top-[0.6em] before:left-1/2 before:h-[1.3em] before:w-[5em] before:-translate-x-1/2 before:rotate-3 before:bg-highlight/85",
+        )}
+      >
+        <p ref={ref} className="leading-[1.9] whitespace-pre-line wrap-anywhere">
+          {value}
+        </p>
+        <CopyButton
+          value={value}
+          targetRef={ref}
+          label="Copy for your AI"
+          size="lg"
+          className="mt-[0.9em] h-auto min-h-11 w-full rounded-full border-2 border-foreground bg-human px-[1.2em] py-[0.5em] text-[0.8em] font-bold text-foreground shadow-[0_4px_0_var(--foreground)] hover:bg-highlight active:translate-y-1 active:shadow-none @lg:w-auto"
+        />
+      </figure>
+    </div>
   );
 }

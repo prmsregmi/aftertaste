@@ -11,6 +11,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
+  --font-serif: var(--font-newsreader);
   --font-display: var(--font-display);
   --color-highlight: var(--highlight);
   --color-human: var(--human);
