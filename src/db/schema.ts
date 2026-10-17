@@ -74,7 +74,7 @@ export const subjects = pgTable("subjects", {
   location: text("location"),
   aliases: text("aliases").array().notNull().default(sql`'{}'::text[]`),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}).enableRLS();
 
 export const contributors = pgTable("contributors", {
   id: text("id").primaryKey(),
@@ -87,7 +87,7 @@ export const contributors = pgTable("contributors", {
   inkboxVerifiedAt: timestamp("inkbox_verified_at", { withTimezone: true }),
   createdIpHash: text("created_ip_hash"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}).enableRLS();
 
 export const experiences = pgTable(
   "experiences",
@@ -139,7 +139,7 @@ export const experiences = pgTable(
       .where(sql`${t.idempotencyKey} is not null`),
     index("experiences_search_idx").using("gin", sql`to_tsvector('english', ${t.searchText})`),
   ],
-);
+).enableRLS();
 
 export const reviewEvents = pgTable("review_events", {
   id: serial("id").primaryKey(),
@@ -152,7 +152,7 @@ export const reviewEvents = pgTable("review_events", {
   note: text("note"),
   requestId: text("request_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}).enableRLS();
 
 export const flags = pgTable("flags", {
   id: serial("id").primaryKey(),
@@ -163,4 +163,4 @@ export const flags = pgTable("flags", {
   note: text("note"),
   submitterKey: text("submitter_key").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}).enableRLS();

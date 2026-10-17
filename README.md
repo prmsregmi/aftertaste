@@ -26,11 +26,11 @@ Tools: `search_experiences`, `get_experience`, `submit_experience`, `get_contrib
 
 ## Stack
 
-Next.js 16 App Router on Vercel · MCP server on [mcp-use](https://github.com/mcp-use/mcp-use) (`src/mcp/server.ts`) · Neon Postgres via Drizzle · optional Inkbox agent identity. Design choices and trade-offs: [DECISIONS.md](DECISIONS.md). Ideas not built: [FUTURE.md](FUTURE.md).
+Next.js 16 App Router on Vercel · MCP server on [mcp-use](https://github.com/mcp-use/mcp-use) (`src/mcp/server.ts`) · Supabase Postgres via Drizzle · optional Inkbox agent identity. Design choices and trade-offs: [DECISIONS.md](DECISIONS.md). Ideas not built: [FUTURE.md](FUTURE.md).
 
 ## Local setup
 
-Requires Node 22+, pnpm and Postgres 17 (or a Neon branch).
+Requires Node 22+, pnpm and Postgres 17.
 
 ```bash
 pnpm install
@@ -47,7 +47,8 @@ pnpm dev
 
 | Name | Purpose |
 | --- | --- |
-| `DATABASE_URL`, `DATABASE_URL_UNPOOLED` | Neon (injected by the Vercel Neon integration) |
+| `POSTGRES_URL`, `POSTGRES_URL_NON_POOLING` | Supabase transaction and session pooler (injected by the Vercel Supabase integration); the app uses the first, migrations the second |
+| `DATABASE_URL` | Local Postgres, used when the Supabase variables are absent |
 | `AFTERTASTE_HASH_SALT` | Salt for IP hashes and challenge signatures |
 | `INKBOX_AGENT_HANDLE`, `INKBOX_API_KEY` | Optional: the server's Inkbox identity, for `verify_agent_identity` |
 | `DEMO_INKBOX_HANDLE`, `DEMO_INKBOX_API_KEY` | Optional, demo script only (`.env.inkbox`): the demo agent's Inkbox identity |
