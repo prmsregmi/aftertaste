@@ -4,6 +4,7 @@ import { revalidateTag } from "next/cache";
 import { getDb } from "@/db";
 import { contributors, experiences, flags, reviewEvents, subjects } from "@/db/schema";
 import type { Submission } from "./contracts";
+import * as inkbox from "./inkbox";
 import { evaluateSubmission, type Status } from "./evaluate";
 
 export const CACHE_TAG = "commons";
@@ -18,12 +19,15 @@ const LIMITS = {
 export type Actor = {
   contributorId: string | null;
   contributorLabel: string | null;
+  inkboxHandle: string | null;
   ipHash: string;
+  // False when the platform supplied no client IP; such anonymous callers share one rate-limit bucket.
+  ipKnown: boolean;
 };
 
 export class CommonsError extends Error {
   constructor(
-    public code: "rate_limited" | "not_found" | "invalid",
+    public code: "rate_limited" | "not_found" | "invalid" | "unauthorized",
     message: string,
   ) {
     super(message);
@@ -45,6 +49,21 @@ export function hashIp(ip: string) {
 }
 
 const submitterKey = (actor: Actor) => actor.contributorId ?? `ip:${actor.ipHash}`;
+
+// Who may see their own unpublished records. Anonymous callers without a platform IP own nothing,
+// so the shared fallback bucket can't read each other's submissions.
+const ownerKey = (actor: Actor) => (actor.contributorId || actor.ipKnown ? submitterKey(actor) : null);
+
+export function attributionOf(c: { contributorId: string | null; label?: string | null; inkboxHandle?: string | null; isDemoFixture: boolean }) {
+  if (c.isDemoFixture) return { kind: "seed" as const, label: null, verified_agent: null };
+  if (!c.contributorId) return { kind: "anonymous" as const, label: null, verified_agent: null };
+  return {
+    kind: "registered" as const,
+    label: c.label ?? c.contributorId,
+    // Identity only: proves who submitted, never that the claim is true.
+    verified_agent: c.inkboxHandle ? `@${c.inkboxHandle} (Inkbox identity verified)` : null,
+  };
+}
 
 function slugify(value: string) {
   return value
@@ -221,7 +240,7 @@ export async function submitExperience(input: Submission, actor: Actor) {
     .where(and(eq(experiences.contentHash, contentHash), ne(experiences.status, "rejected")));
   if (dupe) {
     // Only reveal the ID when the caller could see it anyway, so this can't probe others' unpublished records.
-    const visible = dupe.status === "published" || dupe.submitterKey === key;
+    const visible = dupe.status === "published" || dupe.submitterKey === ownerKey(actor);
     hold(
       "duplicate_submission",
       visible ? `Same content already exists as ${dupe.id}.` : "Same content was already submitted.",
@@ -287,6 +306,8 @@ type SearchRow = {
   is_demo_fixture: boolean;
   flag_count: number;
   contributor_id: string | null;
+  contributor_label: string | null;
+  inkbox_handle: string | null;
   created_at: string;
   subject_name: string;
   subject_slug: string;
@@ -329,18 +350,20 @@ export async function searchExperiences(query: string, opts: { kind?: string; li
     with q as (select tsvector_to_array(to_tsvector('english', ${query})) as lexemes),
     scored as (
       select e.*, s.name as subject_name, s.slug as subject_slug, s.kind as subject_kind,
+             c.label as contributor_label, c.inkbox_handle,
              (select count(*) from unnest(q.lexemes) l
                where to_tsvector('english', e.search_text) @@ quote_literal(l)::tsquery)::float
                / greatest(cardinality(q.lexemes), 1) as coverage,
              word_similarity(s.name, ${query}) as name_match
       from experiences e
       join subjects s on s.id = e.subject_id
+      left join contributors c on c.id = e.contributor_id
       cross join q
       where e.status = 'published'
         and (${opts.kind ?? null}::text is null or s.kind::text = ${opts.kind ?? null})
     )
     select id, summary, variant, source_type, evidence_tier, observed_on, observations, context, limitations,
-           derived_from, is_demo_fixture, flag_count, contributor_id, created_at,
+           derived_from, is_demo_fixture, flag_count, contributor_id, contributor_label, inkbox_handle, created_at,
            subject_name, subject_slug, subject_kind, coverage + name_match as score
     from scored e
     where coverage >= 0.5 or name_match > 0.5
@@ -358,7 +381,12 @@ export async function searchExperiences(query: string, opts: { kind?: string; li
     source_type: r.source_type,
     evidence_tier: r.evidence_tier,
     demo_fixture: r.is_demo_fixture,
-    attribution: r.contributor_id ? `registered contributor ${r.contributor_id}` : r.is_demo_fixture ? "seed" : "anonymous",
+    contributor: attributionOf({
+      contributorId: r.contributor_id,
+      label: r.contributor_label,
+      inkboxHandle: r.inkbox_handle,
+      isDemoFixture: r.is_demo_fixture,
+    }),
     caveat: caveatFor({
       sourceType: r.source_type,
       isDemoFixture: r.is_demo_fixture,
@@ -388,12 +416,13 @@ export async function searchExperiences(query: string, opts: { kind?: string; li
 export async function getExperience(id: string) {
   const db = getDb();
   const [row] = await db
-    .select({ e: experiences, s: subjects })
+    .select({ e: experiences, s: subjects, c: { label: contributors.label, inkboxHandle: contributors.inkboxHandle } })
     .from(experiences)
     .innerJoin(subjects, eq(subjects.id, experiences.subjectId))
+    .leftJoin(contributors, eq(contributors.id, experiences.contributorId))
     .where(and(eq(experiences.id, id), eq(experiences.status, "published")));
   if (!row) throw new CommonsError("not_found", `No published experience with id ${id}.`);
-  const { e, s } = row;
+  const { e, s, c } = row;
   return {
     id: e.id,
     subject: { name: s.name, kind: s.kind, slug: s.slug, brand: s.brand, location: s.location },
@@ -413,7 +442,7 @@ export async function getExperience(id: string) {
     derived_from: e.derivedFrom,
     permission_basis: e.permission.basis,
     demo_fixture: e.isDemoFixture,
-    attribution: e.contributorId ? `registered contributor ${e.contributorId}` : e.isDemoFixture ? "seed" : "anonymous",
+    contributor: attributionOf({ ...e, label: c?.label, inkboxHandle: c?.inkboxHandle }),
     flag_count: e.flagCount,
     published_at: e.createdAt.toISOString(),
     caveat: caveatFor(e),
@@ -436,7 +465,7 @@ export async function getSubmissionStatus(id: string, actor: Actor) {
     .where(
       and(
         eq(experiences.id, id),
-        or(eq(experiences.status, "published"), eq(experiences.submitterKey, submitterKey(actor))),
+        or(eq(experiences.status, "published"), eq(experiences.submitterKey, ownerKey(actor) ?? "")),
       ),
     );
   if (!row) throw new CommonsError("not_found", `No submission with id ${id} visible to this identity.`);
@@ -468,10 +497,68 @@ export async function registerContributor(label: string, kind: "agent" | "person
 
 export async function authenticate(token: string) {
   const [row] = await getDb()
-    .select({ id: contributors.id, label: contributors.label })
+    .select({ id: contributors.id, label: contributors.label, inkboxHandle: contributors.inkboxHandle })
     .from(contributors)
     .where(and(eq(contributors.tokenHash, sha256(token)), eq(contributors.status, "active")));
   return row ?? null;
+}
+
+const INKBOX_HANDLE = /^[a-z0-9][a-z0-9._-]{1,62}$/;
+
+// Optional upgrade for a registered contributor: prove control of an Inkbox agent identity to get the
+// "verified agent" badge. Call without a nonce to get a challenge, then again with the nonce after sending it.
+export async function verifyAgentIdentity(rawHandle: string, nonce: string | undefined, actor: Actor) {
+  if (!actor.contributorId) {
+    throw new CommonsError("unauthorized", "Register first with register_contributor and connect with its bearer token.");
+  }
+  const handle = rawHandle.replace(/^@/, "").toLowerCase();
+  if (!INKBOX_HANDLE.test(handle)) throw new CommonsError("invalid", "That is not a valid Inkbox handle.");
+
+  if (!nonce) {
+    if (!(await inkbox.cardExists(handle))) {
+      throw new CommonsError("not_found", `@${handle} has no public A2A agent card; it must be a claimed Inkbox identity with A2A enabled.`);
+    }
+    const challenge = inkbox.issueChallenge(handle);
+    return {
+      step: "send_challenge",
+      send_to: inkbox.serverCardUrl(),
+      message: inkbox.challengeText(challenge.nonce),
+      nonce: challenge.nonce,
+      expires_at: challenge.expiresAt.toISOString(),
+      how: [
+        `CLI: inkbox a2a call ${inkbox.serverCardUrl()} -i ${handle} --text "${inkbox.challengeText(challenge.nonce)}"`,
+        "SDK: (await (await inkbox.getIdentity(handle)).a2aClient()).send(await client.fetchCard(send_to), { text: message })",
+      ],
+      then: "Call verify_agent_identity again with the same inkbox_handle and this nonce.",
+    };
+  }
+
+  const issuedAt = inkbox.verifyChallenge(handle, nonce);
+  if (!issuedAt) throw new CommonsError("invalid", "Challenge is invalid or expired; request a new one.");
+  const task = await inkbox.findChallengeTask(handle, nonce, issuedAt);
+  if (!task) {
+    throw new CommonsError("not_found", `No A2A message containing the challenge from @${handle} yet. Send it, then retry.`);
+  }
+
+  const db = getDb();
+  // The identity that proves control most recently owns the handle.
+  await db
+    .update(contributors)
+    .set({ inkboxHandle: null, inkboxVerifiedAt: null })
+    .where(and(eq(contributors.inkboxHandle, handle), ne(contributors.id, actor.contributorId)));
+  await db
+    .update(contributors)
+    .set({ inkboxHandle: handle, inkboxVerifiedAt: new Date() })
+    .where(eq(contributors.id, actor.contributorId));
+  await inkbox.completeTask(task.id, `Verified @${handle} for Experience Commons contributor ${actor.contributorId}.`);
+  revalidateTag(CACHE_TAG, "max");
+
+  return {
+    step: "verified",
+    contributor_id: actor.contributorId,
+    verified_agent: `@${handle} (Inkbox identity verified)`,
+    note: "Your records now show a verified-agent badge. It attests identity only; claims stay labeled self-reported.",
+  };
 }
 
 export async function flagExperience(id: string, reason: string, note: string | undefined, actor: Actor) {
@@ -515,20 +602,17 @@ export async function getPublicStats() {
   return rows[0];
 }
 
-export async function listPublicSamples(limit = 6) {
-  const db = getDb();
-  const rows = await db
-    .select({ e: experiences, s: subjects })
-    .from(experiences)
-    .innerJoin(subjects, eq(subjects.id, experiences.subjectId))
-    .where(and(eq(experiences.status, "published"), eq(experiences.isPublicSample, true)))
-    .orderBy(desc(experiences.createdAt))
-    .limit(limit);
-  return rows.map(({ e, s }) => ({
+const contributorCols = { label: contributors.label, inkboxHandle: contributors.inkboxHandle };
+
+function toPublicRecord(
+  e: typeof experiences.$inferSelect,
+  s: typeof subjects.$inferSelect,
+  c: { label: string; inkboxHandle: string | null } | null,
+) {
+  return {
     id: e.id,
     subjectName: s.name,
     subjectSlug: s.slug,
-    subjectKind: s.kind,
     summary: e.summary,
     variant: e.variant,
     sourceType: e.sourceType,
@@ -537,7 +621,20 @@ export async function listPublicSamples(limit = 6) {
     isDemoFixture: e.isDemoFixture,
     aspects: e.observations.map((o) => o.aspect),
     caveat: caveatFor(e),
-  }));
+    contributor: attributionOf({ ...e, label: c?.label, inkboxHandle: c?.inkboxHandle }),
+  };
+}
+
+export async function listPublicSamples(limit = 6) {
+  const rows = await getDb()
+    .select({ e: experiences, s: subjects, c: contributorCols })
+    .from(experiences)
+    .innerJoin(subjects, eq(subjects.id, experiences.subjectId))
+    .leftJoin(contributors, eq(contributors.id, experiences.contributorId))
+    .where(and(eq(experiences.status, "published"), eq(experiences.isPublicSample, true)))
+    .orderBy(desc(experiences.createdAt))
+    .limit(limit);
+  return rows.map(({ e, s, c }) => toPublicRecord(e, s, c));
 }
 
 type TeaserRow = {
@@ -570,8 +667,9 @@ export async function getSubjectTeaser(slug: string) {
   const [subject] = await db.select().from(subjects).where(eq(subjects.slug, slug));
   if (!subject) return null;
   const rows = await db
-    .select({ e: experiences })
+    .select({ e: experiences, c: contributorCols })
     .from(experiences)
+    .leftJoin(contributors, eq(contributors.id, experiences.contributorId))
     .where(and(eq(experiences.subjectId, subject.id), eq(experiences.status, "published")))
     .orderBy(desc(experiences.createdAt));
   if (rows.length === 0) return null;
@@ -581,7 +679,7 @@ export async function getSubjectTeaser(slug: string) {
     publishedCount: all.length,
     sourceTypes: [...new Set(all.map((e) => e.sourceType))],
     aspects: [...new Set(all.flatMap((e) => e.observations.map((o) => o.aspect)))],
-    samples: all.filter((e) => e.isPublicSample).map((e) => ({ ...e, caveat: caveatFor(e) })),
+    samples: rows.filter(({ e }) => e.isPublicSample).map(({ e, c }) => toPublicRecord(e, subject, c)),
     mcpOnlyCount: all.filter((e) => !e.isPublicSample).length,
   };
 }

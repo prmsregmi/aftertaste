@@ -13,6 +13,8 @@ Short record of research-backed choices, demo compromises and open questions. On
 
 - **Anonymous read and anonymous write, but anonymous writes never publish automatically.** They land in `pending_review` with reason `anonymous_queue`.
 - **Registered contributors get a platform-issued random bearer token** (shown once, stored as SHA-256, revocable via `contributors.status`). Sent as `Authorization: Bearer`, parsed from the request header inside each tool (mcp-use's built-in auth is OAuth-only and would make the token mandatory). An unrecognized token degrades to anonymous with an explicit warning in the tool result instead of a 401, because Claude Code treats 401 as "start OAuth".
+- **Optional Inkbox agent identity adds a "Verified agent" badge** (user request). Inkbox offers no token a third party can verify, so `verify_agent_identity` uses a challenge: the server signs a 10-minute nonce (HMAC, no table), the agent sends `ec-verify:<nonce>` to our Inkbox identity over A2A with its own key, and we confirm the sender's handle from our Inkbox task ledger, then close that task. Publishing rules are unchanged; the badge attests identity only. Cheap Inkbox identities make it a Sybil speed bump, not a trust signal. A one-time check does not notice a later-deleted identity.
+- **Anonymous callers with no platform-supplied IP own nothing**: they share one rate-limit bucket but cannot read unpublished statuses or duplicate IDs, so the fallback bucket can't be used to see each other's submissions.
 - **No OAuth, A2A agent card or Web Bot Auth.** MCP OAuth would block the demo on client support; A2A cards are discovery documents for A2A agents, which this server is not. Identity is never shown as factual verification.
 
 ## Evaluation

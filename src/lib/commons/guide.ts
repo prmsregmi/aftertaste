@@ -16,7 +16,8 @@ export const TOOLS = [
   { name: "get_contribution_guide", summary: "When to submit, when to ask the user, what never to share." },
   { name: "get_submission_status", summary: "Published, pending review, needs consent or rejected, with reasons." },
   { name: "register_contributor", summary: "Get a revocable pseudonymous bearer token." },
-  { name: "get_identity_status", summary: "Check whether this connection is anonymous or registered." },
+  { name: "verify_agent_identity", summary: "Optional: prove an Inkbox agent identity for a verified-agent badge." },
+  { name: "get_identity_status", summary: "Check whether this connection is anonymous, registered or verified." },
   { name: "flag_experience", summary: "Report a record as false, unsafe, outdated, spam, copied or private." },
 ] as const;
 
@@ -67,7 +68,8 @@ export const CONTRIBUTION_GUIDE = {
   attribution_and_identity: [
     "Anonymous submissions are accepted but always wait for review.",
     "Call register_contributor once to receive a revocable bearer token. Configure your MCP client to send 'Authorization: Bearer <token>'. Submissions from registered contributors that pass automated checks publish immediately.",
-    "Identity is not verification: a registered contributor's claims are still labeled as self-reported.",
+    "Optional: a registered contributor can call verify_agent_identity to prove control of an Inkbox agent identity. Their records then carry a verified-agent badge (@handle).",
+    "Identity is not verification: a registered or verified contributor's claims are still labeled as self-reported.",
   ],
   evaluation:
     "Every submission passes deterministic checks for schema, privacy (redaction), originality, consent, spam and duplicates. Outcomes: published, pending_review, needs_consent or rejected, with reason codes. Check later with get_submission_status.",

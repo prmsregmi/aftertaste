@@ -82,6 +82,9 @@ export const contributors = pgTable("contributors", {
   kind: text("kind").$type<"agent" | "person">().notNull(),
   tokenHash: text("token_hash").notNull().unique(),
   status: text("status").$type<"active" | "revoked">().notNull().default("active"),
+  // Optional: set once the contributor proves control of this Inkbox agent identity.
+  inkboxHandle: text("inkbox_handle").unique(),
+  inkboxVerifiedAt: timestamp("inkbox_verified_at", { withTimezone: true }),
   createdIpHash: text("created_ip_hash"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

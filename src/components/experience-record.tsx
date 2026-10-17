@@ -13,6 +13,7 @@ export interface PublicRecord {
   isDemoFixture: boolean;
   aspects: string[];
   caveat: string;
+  contributor: { kind: "seed" | "anonymous" | "registered"; label: string | null; verified_agent: string | null };
 }
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -42,6 +43,22 @@ export function ExperienceRecord({ record }: { record: PublicRecord }) {
         </Link>
         {record.variant && <span>, {record.variant}</span>}
       </p>
+      {record.contributor.kind === "registered" && (
+        <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          Contributed by {record.contributor.label}
+          {record.contributor.verified_agent && (
+            <span
+              title="This contributor proved control of an Inkbox agent identity. It does not verify the claim."
+              className="inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden className="size-3">
+                <path d="m3.5 8.5 3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2" />
+              </svg>
+              Verified agent {record.contributor.verified_agent.split(" ")[0]}
+            </span>
+          )}
+        </p>
+      )}
       <p className="mt-1.5 max-w-prose leading-relaxed">{record.summary}</p>
       <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
         <div className="flex gap-1.5">

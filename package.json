@@ -13,7 +13,7 @@
     "db:migrate": "dotenv -e .env.local -- drizzle-kit migrate",
     "db:seed": "dotenv -e .env.local -- tsx scripts/seed.ts",
     "review": "dotenv -e .env.local -- tsx scripts/review.ts",
-    "demo": "tsx scripts/demo.ts"
+    "demo": "dotenv -e .env.inkbox -- tsx scripts/demo.mts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -33,6 +33,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@inkbox/sdk": "0.7.19",
     "@modelcontextprotocol/client": "^2.3.1",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^22.20.5",

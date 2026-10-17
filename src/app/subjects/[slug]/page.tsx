@@ -58,23 +58,8 @@ async function SubjectDetail({ params }: Pick<PageProps<"/subjects/[slug]">, "pa
       {teaser.samples.length > 0 && (
         <section className="mt-8 space-y-4">
           <h2 className="text-xl font-bold">Public samples</h2>
-          {teaser.samples.map((e) => (
-            <ExperienceRecord
-              key={e.id}
-              record={{
-                id: e.id,
-                subjectName: subject.name,
-                subjectSlug: subject.slug,
-                summary: e.summary,
-                variant: e.variant,
-                sourceType: e.sourceType,
-                evidenceTier: e.evidenceTier,
-                observedOn: e.observedOn,
-                isDemoFixture: e.isDemoFixture,
-                aspects: e.observations.map((o) => o.aspect),
-                caveat: e.caveat,
-              }}
-            />
+          {teaser.samples.map((record) => (
+            <ExperienceRecord key={record.id} record={record} />
           ))}
         </section>
       )}

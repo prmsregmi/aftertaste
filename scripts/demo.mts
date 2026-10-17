@@ -1,5 +1,7 @@
 // End-to-end write/read loop against a live endpoint, using two independent MCP client connections.
 //   MCP_URL=https://<host>/api/mcp pnpm demo
+// With DEMO_INKBOX_HANDLE and DEMO_INKBOX_API_KEY (from .env.inkbox), agent A also proves its Inkbox identity.
+import { Inkbox } from "@inkbox/sdk";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 
 const url = new URL(process.env.MCP_URL ?? "http://localhost:3000/api/mcp");
@@ -73,6 +75,17 @@ async function main() {
   console.log(`  registered ${contributor_id}`);
   const a = await connect("agent-a", token);
   console.log(`  identity: ${(await call(a, "get_identity_status")).identity}`);
+
+  const handle = process.env.DEMO_INKBOX_HANDLE;
+  if (handle && process.env.DEMO_INKBOX_API_KEY) {
+    // Optional: send the challenge from agent A's own Inkbox identity over A2A, then confirm.
+    const challenge = await call(a, "verify_agent_identity", { inkbox_handle: handle });
+    const me = await new Inkbox({ apiKey: process.env.DEMO_INKBOX_API_KEY }).getIdentity(handle);
+    const a2a = await me.a2aClient();
+    await a2a.send(await a2a.fetchCard(challenge.send_to), { text: challenge.message });
+    const verified = await call(a, "verify_agent_identity", { inkbox_handle: handle, nonce: challenge.nonce });
+    console.log(`  agent identity: ${verified.verified_agent ?? "not verified"}`);
+  }
   const submitted = await call(a, "submit_experience", jacket);
   console.log(`  ${submitted.id}: ${submitted.status} ${JSON.stringify(submitted.reason_codes)}`);
   const replay = await call(a, "submit_experience", jacket);
@@ -94,7 +107,10 @@ async function main() {
 
   console.log("\n4. Agent B, a separate connection, searches again");
   const after = await call(b, "search_experiences", { query: "How is the Canyon motorcycle jacket fit in size S?" });
-  for (const r of after.results) console.log(`  ${r.id} [${r.source_type}] ${r.subject.name}: ${r.caveat}`);
+  for (const r of after.results) {
+    const who = r.contributor.verified_agent ?? r.contributor.label ?? r.contributor.kind;
+    console.log(`  ${r.id} [${r.source_type}, ${who}] ${r.subject.name}: ${r.caveat}`);
+  }
   const found = after.results.find((r: { id: string }) => r.id === submitted.id);
   console.log(`  contributed record retrievable: ${Boolean(found)}`);
   const leaked = after.results.some((r: { id: string }) => r.id === spamResult.id || r.id === anonResult.id);

@@ -14,6 +14,7 @@ import {
   registerContributor,
   searchExperiences,
   submitExperience,
+  verifyAgentIdentity,
 } from "@/lib/commons/service";
 
 const server = new MCPServer({
@@ -31,13 +32,15 @@ type Ctx = { request?: { raw: Request; header(name: string): string | undefined 
 // token degrades to anonymous (with a warning) instead of a 401, which some clients treat as an OAuth prompt.
 async function actorOf(ctx: Ctx): Promise<Actor & { invalidToken: boolean }> {
   // Platform-provided IP only; client-supplied forwarding headers are spoofable. Missing IPs share one bucket.
-  const ip = (ctx.request && ipAddress(ctx.request.raw)) || "unknown";
+  const ip = ctx.request && ipAddress(ctx.request.raw);
   const token = /^Bearer\s+(\S+)$/i.exec(ctx.request?.header("authorization") ?? "")?.[1];
   const contributor = token ? await authenticate(token) : null;
   return {
     contributorId: contributor?.id ?? null,
     contributorLabel: contributor?.label ?? null,
-    ipHash: hashIp(ip),
+    inkboxHandle: contributor?.inkboxHandle ?? null,
+    ipHash: hashIp(ip || "unknown"),
+    ipKnown: Boolean(ip),
     invalidToken: Boolean(token && !contributor),
   };
 }
@@ -133,7 +136,7 @@ server.tool(
     name: "register_contributor",
     title: "Register contributor",
     description:
-      "Create a pseudonymous contributor identity and receive a revocable bearer token (shown once). Store it in your MCP client configuration as the header 'Authorization: Bearer <token>', not in chat or public files. Registered submissions that pass automated checks publish without waiting for review. Identity is not verification: claims stay labeled self-reported.",
+      "Create a pseudonymous contributor identity and receive a revocable bearer token (shown once). Store it in your MCP client configuration as the header 'Authorization: Bearer <token>', not in chat or public files. Registered submissions that pass automated checks publish without waiting for review. Optionally call verify_agent_identity afterwards to add a verified-agent badge. Identity is not verification: claims stay labeled self-reported.",
     inputSchema: z.object({
       label: z.string().min(2).max(60).describe("Public pseudonym, e.g. 'rider-assistant-7'. Do not use a real name."),
       kind: z.enum(["agent", "person"]),
@@ -162,12 +165,29 @@ server.tool(
         identity: actor.contributorId ? "registered" : "anonymous",
         contributor_id: actor.contributorId,
         label: actor.contributorLabel,
+        verified_agent: actor.inkboxHandle ? `@${actor.inkboxHandle} (Inkbox identity verified)` : null,
         token_recognized: !actor.invalidToken,
+        network_identified: actor.ipKnown,
         effect: actor.contributorId
           ? "Submissions that pass automated checks publish immediately."
           : "Submissions wait in the review queue.",
       };
     }),
+);
+
+server.tool(
+  {
+    name: "verify_agent_identity",
+    title: "Verify agent identity",
+    description:
+      "Optional, for registered contributors: prove you control an Inkbox agent identity to show a verified-agent badge on your records. Call with inkbox_handle to receive a challenge, send the challenge text to the given A2A card from that Inkbox identity, then call again with the nonce. The badge attests identity only, never that a claim is true.",
+    inputSchema: z.object({
+      inkbox_handle: z.string().min(2).max(64).describe("Your Inkbox identity handle, e.g. 'rider-assistant'."),
+      nonce: z.string().min(8).max(80).optional().describe("The nonce from the first call, once you have sent the challenge."),
+    }),
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+  },
+  async ({ inkbox_handle, nonce }, ctx) => run(async () => verifyAgentIdentity(inkbox_handle, nonce, await actorOf(ctx))),
 );
 
 server.tool(
