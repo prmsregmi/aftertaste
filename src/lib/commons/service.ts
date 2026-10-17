@@ -79,21 +79,10 @@ export async function resolveSubject(input: Submission["subject"], trusted: bool
     order by (slug = ${slug}) desc, similarity(name, ${input.name}) desc
     limit 1`);
 
-  const meta = trusted ? { brand: input.brand, location: input.location, aliases: input.aliases ?? [] } : {};
-  if (rows[0]) {
-    if (trusted) {
-      await db
-        .update(subjects)
-        .set({
-          brand: sql`coalesce(${subjects.brand}, ${input.brand ?? null})`,
-          location: sql`coalesce(${subjects.location}, ${input.location ?? null})`,
-          aliases: sql`case when cardinality(${subjects.aliases}) = 0 then ${sql.param(meta.aliases)}::text[] else ${subjects.aliases} end`,
-        })
-        .where(eq(subjects.id, rows[0].id));
-    }
-    return rows[0];
-  }
+  if (rows[0]) return rows[0];
 
+  // Existing subjects are never edited by submissions; metadata is set once, at creation.
+  const meta = trusted ? { brand: input.brand, location: input.location, aliases: input.aliases ?? [] } : {};
   const [created] = await db
     .insert(subjects)
     .values({ id: newId("sub"), slug, name: input.name, kind: input.kind, ...meta })
