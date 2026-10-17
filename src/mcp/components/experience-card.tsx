@@ -17,7 +17,7 @@ export function ExperienceCard({ r }: { r: SearchResult }) {
         {r.variant && <span className="xc-muted">{r.variant}</span>}
       </div>
       <div className="xc-chips">
-        <span className="xc-chip">{r.demo_fixture ? "Demo fixture" : SOURCE[r.source_type]}</span>
+        <span className="xc-chip">{SOURCE[r.source_type]}</span>
         <span className="xc-chip">{EVIDENCE[r.evidence_tier]}</span>
         {r.observed_on && <span className="xc-chip">{r.observed_on}</span>}
         {r.contributor.verified_agent && (

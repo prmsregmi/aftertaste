@@ -30,7 +30,7 @@ const EVIDENCE_LABEL: Record<string, string> = {
 
 export function ExperienceRecord({ record }: { record: PublicRecord }) {
   const meta = [
-    record.isDemoFixture ? "Demo fixture" : SOURCE_LABEL[record.sourceType],
+    SOURCE_LABEL[record.sourceType],
     EVIDENCE_LABEL[record.evidenceTier],
     record.observedOn,
   ].filter(Boolean);
@@ -39,9 +39,8 @@ export function ExperienceRecord({ record }: { record: PublicRecord }) {
     <article
       className={cn(
         "border-l-4 bg-card py-4 pr-4 pl-5 human:rounded-r-xl",
-        record.isDemoFixture && "border-fixture bg-[repeating-linear-gradient(135deg,transparent_0_10px,rgb(148_96_15/0.05)_10px_20px)]",
-        !record.isDemoFixture && record.sourceType === "agent_experiment" && "border-experiment",
-        !record.isDemoFixture && record.sourceType === "human_firsthand" && "border-firsthand",
+        record.sourceType === "agent_experiment" && "border-experiment",
+        record.sourceType === "human_firsthand" && "border-firsthand",
       )}
     >
       <p className="text-sm">
@@ -60,7 +59,7 @@ export function ExperienceRecord({ record }: { record: PublicRecord }) {
         </p>
       )}
       <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-        <span className={cn(record.isDemoFixture && "font-semibold text-fixture")}>{meta.join(" · ")}</span>
+        <span>{meta.join(" · ")}</span>
         {record.contributor.kind === "registered" && <span>· {record.contributor.label}</span>}
         {record.contributor.verified_agent && (
           <span
@@ -74,7 +73,7 @@ export function ExperienceRecord({ record }: { record: PublicRecord }) {
           </span>
         )}
       </p>
-      {!record.isDemoFixture && <p className="mt-2 text-sm text-muted-foreground">{record.caveat}</p>}
+      <p className="mt-2 text-sm text-muted-foreground">{record.caveat}</p>
     </article>
   );
 }

@@ -54,8 +54,7 @@ const submitterKey = (actor: Actor) => actor.contributorId ?? `ip:${actor.ipHash
 // so the shared fallback bucket can't read each other's submissions.
 const ownerKey = (actor: Actor) => (actor.contributorId || actor.ipKnown ? submitterKey(actor) : null);
 
-export function attributionOf(c: { contributorId: string | null; label?: string | null; inkboxHandle?: string | null; isDemoFixture: boolean }) {
-  if (c.isDemoFixture) return { kind: "seed" as const, label: null, verified_agent: null };
+export function attributionOf(c: { contributorId: string | null; label?: string | null; inkboxHandle?: string | null }) {
   if (!c.contributorId) return { kind: "anonymous" as const, label: null, verified_agent: null };
   return {
     kind: "registered" as const,
@@ -74,6 +73,10 @@ function slugify(value: string) {
     .slice(0, 80);
 }
 
+export function subjectSlug(input: Submission["subject"]) {
+  return slugify(input.location ? `${input.name} ${input.location}` : input.name);
+}
+
 async function recentCount(submitter: string, since: Date) {
   const [row] = await getDb()
     .select({ n: count() })
@@ -87,7 +90,7 @@ async function recentCount(submitter: string, since: Date) {
 // published records, and brand/location/aliases are stored only from submissions that publish.
 export async function resolveSubject(input: Submission["subject"], trusted: boolean) {
   const db = getDb();
-  const slug = slugify(input.location ? `${input.name} ${input.location}` : input.name);
+  const slug = subjectSlug(input);
   const { rows } = await db.execute<{ id: string; slug: string; name: string }>(sql`
     select id, slug, name from subjects s
     where slug = ${slug}
@@ -124,13 +127,13 @@ type InsertOptions = {
   isPublicSample?: boolean;
 };
 
-export async function insertExperience(s: Submission, contentHash: string, opts: InsertOptions) {
-  const db = getDb();
-  const subject = await resolveSubject(s.subject, opts.status === "published");
-  const id = newId("exp");
-  await db.insert(experiences).values({
-    id,
-    subjectId: subject.id,
+type RowOptions = Omit<InsertOptions, "actor" | "requestId"> & { contributorId: string | null; submitterKey: string };
+
+// Column values for a new experience; also used by the bulk loader.
+export function experienceRow(s: Submission, contentHash: string, subjectId: string, opts: RowOptions) {
+  return {
+    id: newId("exp"),
+    subjectId,
     sourceType: s.source_type,
     summary: s.summary,
     variant: s.variant,
@@ -150,22 +153,33 @@ export async function insertExperience(s: Submission, contentHash: string, opts:
     status: opts.status,
     reasonCodes: opts.reasonCodes,
     reasonText: opts.reasonText,
-    contributorId: opts.actor?.contributorId ?? null,
-    submitterKey: opts.actor ? submitterKey(opts.actor) : "seed",
+    contributorId: opts.contributorId,
+    submitterKey: opts.submitterKey,
     idempotencyKey: s.idempotency_key,
     contentHash,
     isDemoFixture: opts.isDemoFixture ?? false,
     isPublicSample: opts.isPublicSample ?? false,
     searchText: searchTextOf(s),
+  } satisfies typeof experiences.$inferInsert;
+}
+
+export async function insertExperience(s: Submission, contentHash: string, opts: InsertOptions) {
+  const db = getDb();
+  const subject = await resolveSubject(s.subject, opts.status === "published");
+  const row = experienceRow(s, contentHash, subject.id, {
+    ...opts,
+    contributorId: opts.actor?.contributorId ?? null,
+    submitterKey: opts.actor ? submitterKey(opts.actor) : "seed",
   });
+  await db.insert(experiences).values(row);
   await db.insert(reviewEvents).values({
-    experienceId: id,
+    experienceId: row.id,
     actor: "evaluator",
     outcome: opts.status,
     reasonCodes: opts.reasonCodes,
     requestId: opts.requestId,
   });
-  return { id, subject };
+  return { id: row.id, subject };
 }
 
 // Descriptive fields only, so enum values like "human_firsthand" don't match every query.
@@ -323,16 +337,13 @@ type SearchRow = {
 
 export function caveatFor(e: {
   sourceType: string;
-  isDemoFixture: boolean;
   variant: string | null;
   derivedFrom: string[];
   flagCount: number;
   observedOn: string | null;
 }) {
   const notes: string[] = [];
-  if (e.isDemoFixture) {
-    notes.push("DEMO FIXTURE: illustrative record seeded by Aftertaste maintainers, not a real observation.");
-  } else if (e.sourceType === "human_firsthand") {
+  if (e.sourceType === "human_firsthand") {
     notes.push(
       `One person's firsthand report${e.variant ? ` for ${e.variant}` : ""}; unverified and not a product-wide finding.`,
     );
@@ -387,16 +398,14 @@ export async function searchExperiences(query: string, opts: { kind?: string; li
     observed_on: r.observed_on,
     source_type: r.source_type,
     evidence_tier: r.evidence_tier,
-    demo_fixture: r.is_demo_fixture,
+    synthetic: r.is_demo_fixture,
     contributor: attributionOf({
       contributorId: r.contributor_id,
       label: r.contributor_label,
       inkboxHandle: r.inkbox_handle,
-      isDemoFixture: r.is_demo_fixture,
     }),
     caveat: caveatFor({
       sourceType: r.source_type,
-      isDemoFixture: r.is_demo_fixture,
       variant: r.variant,
       derivedFrom: r.derived_from,
       flagCount: r.flag_count,
@@ -449,7 +458,7 @@ export async function getExperience(id: string) {
     evidence_tier: e.evidenceTier,
     derived_from: e.derivedFrom,
     permission_basis: e.permission.basis,
-    demo_fixture: e.isDemoFixture,
+    synthetic: e.isDemoFixture,
     contributor: attributionOf({ ...e, label: c?.label, inkboxHandle: c?.inkboxHandle }),
     flag_count: e.flagCount,
     published_at: e.createdAt.toISOString(),

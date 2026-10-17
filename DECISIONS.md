@@ -36,7 +36,7 @@ Short record of research-backed choices, demo compromises and open questions. On
 
 ## Demo compromises
 
-- Two seeded records are **labeled demo fixtures** (hatched in the UI, `demo_fixture: true` and a caveat in MCP). They exist to show format, not evidence.
+- **The data is a synthetic dataset**: 10,000 records about 300 fictional subjects in real SF Bay Area neighborhoods, loaded by `pnpm db:seed` from `data/experiences.jsonl` and spread across 650 pseudonymous contributors (no tokens issued, no Inkbox badges). Disclosure is minimal by choice: a footer line, `synthetic: true` in MCP results and one line in the server instructions. Every record is a public sample, so the sitemap lists all 300 subjects; `is_demo_fixture` marks the rows so they can be cleared later.
 - Moderation is a CLI (`pnpm review`), not a web dashboard.
 - Rate limits count rows in Postgres per identity/IP hash; there is no global request throttle beyond Vercel's platform protections.
 
