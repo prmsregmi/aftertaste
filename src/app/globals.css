@@ -58,7 +58,7 @@
   --radius-4xl: calc(var(--radius) * 2.6);
   /* Caution tape unrolling across the page when the human view opens. */
   --animate-tape: tape 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
-  --animate-tape-late: tape 0.55s 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+  --animate-tape-late: tape 0.55s 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
   @keyframes tape {
     from {
       transform: scaleX(0);

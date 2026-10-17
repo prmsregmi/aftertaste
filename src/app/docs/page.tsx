@@ -22,7 +22,7 @@ function List({ items }: { items: readonly string[] }) {
 export default function DocsPage() {
   const g = CONTRIBUTION_GUIDE;
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <main className="max-w-[56rem] px-6 pt-12 pb-10 sm:px-12 lg:px-16">
       <h1 className="text-3xl font-bold">Experience Commons MCP</h1>
       <p className="mt-3 leading-relaxed">
         A remote, stateless MCP server over Streamable HTTP. It serves MCP 2026-07-28 clients and older 2025-era

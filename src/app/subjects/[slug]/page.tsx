@@ -22,7 +22,7 @@ export async function generateMetadata(props: PageProps<"/subjects/[slug]">): Pr
 
 export default function SubjectPage(props: PageProps<"/subjects/[slug]">) {
   return (
-    <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
+    <main className="max-w-[60rem] px-6 pt-12 pb-10 sm:px-12 lg:px-16">
       <Suspense fallback={<p className="text-sm text-muted-foreground">Loading subject</p>}>
         <SubjectDetail params={props.params} />
       </Suspense>

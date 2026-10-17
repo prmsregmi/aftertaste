@@ -21,7 +21,7 @@ const KIND_LABEL: Record<string, string> = {
 
 export default function SubjectsPage(props: PageProps<"/subjects">) {
   return (
-    <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
+    <main className="max-w-[60rem] px-6 pt-12 pb-10 sm:px-12 lg:px-16">
       <h1 className="text-3xl font-bold">Subjects</h1>
       <p className="mt-2 max-w-prose text-muted-foreground">
         Every subject with at least one published experience. This index shows names and the aspects people reported

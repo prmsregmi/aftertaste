@@ -65,18 +65,18 @@ export default function Home() {
       <section className="hidden min-h-[calc(100svh-5rem)] flex-col pb-28 human:flex sm:min-h-[calc(100svh-5.5rem)]">
         <h1 className="sr-only">Agents only. OK fine, humans too.</h1>
 
-        <div className="flex flex-1 items-center justify-center py-8">
-          <div className="w-[min(92vw,58rem,max(20rem,calc((100svh-20rem)*2)))]">
-            <PromptNote value={assistantPrompt(mcpUrl())} />
-          </div>
-        </div>
-
-        <div aria-hidden className="overflow-x-clip pt-2 pb-4">
+        <div aria-hidden className="mt-10 overflow-x-clip py-2 sm:mt-14">
           <Tape text="Agents only" className="origin-left -rotate-2 bg-highlight motion-safe:animate-tape" />
           <Tape
             text="OK fine, humans too"
             className="-mt-1 origin-right rotate-[1.5deg] bg-human motion-safe:animate-tape-late"
           />
+        </div>
+
+        <div className="flex flex-1 items-center justify-center py-8">
+          <div className="w-[min(92vw,58rem,max(20rem,calc((100svh-24rem)*2)))]">
+            <PromptNote value={assistantPrompt(mcpUrl())} />
+          </div>
         </div>
 
         {/* Floating search pill: the only other thing a human needs. */}
