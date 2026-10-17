@@ -7,7 +7,7 @@ import type { Submission } from "./contracts";
 import * as inkbox from "./inkbox";
 import { evaluateSubmission, type Status } from "./evaluate";
 
-export const CACHE_TAG = "commons";
+export const CACHE_TAG = "aftertaste";
 
 const LIMITS = {
   registeredSubmissionsPerHour: 20,
@@ -25,7 +25,7 @@ export type Actor = {
   ipKnown: boolean;
 };
 
-export class CommonsError extends Error {
+export class AftertasteError extends Error {
   constructor(
     public code: "rate_limited" | "not_found" | "invalid" | "unauthorized",
     message: string,
@@ -43,8 +43,8 @@ export function sha256(value: string) {
 }
 
 export function hashIp(ip: string) {
-  const salt = process.env.COMMONS_HASH_SALT;
-  if (!salt) throw new Error("COMMONS_HASH_SALT is not set");
+  const salt = process.env.AFTERTASTE_HASH_SALT;
+  if (!salt) throw new Error("AFTERTASTE_HASH_SALT is not set");
   return sha256(`${salt}:${ip}`).slice(0, 32);
 }
 
@@ -223,7 +223,7 @@ export async function submitExperience(input: Submission, actor: Actor) {
 
   const limit = actor.contributorId ? LIMITS.registeredSubmissionsPerHour : LIMITS.anonymousSubmissionsPerHour;
   if ((await recentCount(key, new Date(Date.now() - 3600_000))) >= limit) {
-    throw new CommonsError("rate_limited", `Submission limit reached (${limit}/hour for this identity).`);
+    throw new AftertasteError("rate_limited", `Submission limit reached (${limit}/hour for this identity).`);
   }
 
   const evaluation = evaluateSubmission(input);
@@ -331,7 +331,7 @@ export function caveatFor(e: {
 }) {
   const notes: string[] = [];
   if (e.isDemoFixture) {
-    notes.push("DEMO FIXTURE: illustrative record seeded by the Commons maintainers, not a real observation.");
+    notes.push("DEMO FIXTURE: illustrative record seeded by Aftertaste maintainers, not a real observation.");
   } else if (e.sourceType === "human_firsthand") {
     notes.push(
       `One person's firsthand report${e.variant ? ` for ${e.variant}` : ""}; unverified and not a product-wide finding.`,
@@ -402,7 +402,7 @@ export async function searchExperiences(query: string, opts: { kind?: string; li
       flagCount: r.flag_count,
       observedOn: r.observed_on,
     }),
-    uri: `commons://experiences/${r.id}`,
+    uri: `aftertaste://experiences/${r.id}`,
   }));
 
   const subjectNames = [...new Set(results.map((r) => r.subject.name))];
@@ -428,7 +428,7 @@ export async function getExperience(id: string) {
     .innerJoin(subjects, eq(subjects.id, experiences.subjectId))
     .leftJoin(contributors, eq(contributors.id, experiences.contributorId))
     .where(and(eq(experiences.id, id), eq(experiences.status, "published")));
-  if (!row) throw new CommonsError("not_found", `No published experience with id ${id}.`);
+  if (!row) throw new AftertasteError("not_found", `No published experience with id ${id}.`);
   const { e, s, c } = row;
   return {
     id: e.id,
@@ -476,7 +476,7 @@ export async function getSubmissionStatus(id: string, actor: Actor) {
         or(eq(experiences.status, "published"), eq(experiences.submitterKey, ownerKey(actor) ?? "")),
       ),
     );
-  if (!row) throw new CommonsError("not_found", `No submission with id ${id} visible to this identity.`);
+  if (!row) throw new AftertasteError("not_found", `No submission with id ${id} visible to this identity.`);
   return {
     id: row.id,
     status: row.status,
@@ -495,10 +495,10 @@ export async function registerContributor(label: string, kind: "agent" | "person
       and(eq(contributors.createdIpHash, actor.ipHash), gt(contributors.createdAt, new Date(Date.now() - 3600_000))),
     );
   if (recent.n >= LIMITS.registrationsPerHour) {
-    throw new CommonsError("rate_limited", "Too many registrations from this network in the last hour.");
+    throw new AftertasteError("rate_limited", "Too many registrations from this network in the last hour.");
   }
   const id = newId("ctr");
-  const token = `ecc_${randomBytes(24).toString("base64url")}`;
+  const token = `aft_${randomBytes(24).toString("base64url")}`;
   await db.insert(contributors).values({ id, label, kind, tokenHash: sha256(token), createdIpHash: actor.ipHash });
   return { contributor_id: id, label, token };
 }
@@ -517,14 +517,14 @@ const INKBOX_HANDLE = /^[a-z0-9][a-z0-9._-]{1,62}$/;
 // "verified agent" badge. Call without a nonce to get a challenge, then again with the nonce after sending it.
 export async function verifyAgentIdentity(rawHandle: string, nonce: string | undefined, actor: Actor) {
   if (!actor.contributorId) {
-    throw new CommonsError("unauthorized", "Register first with register_contributor and connect with its bearer token.");
+    throw new AftertasteError("unauthorized", "Register first with register_contributor and connect with its bearer token.");
   }
   const handle = rawHandle.replace(/^@/, "").toLowerCase();
-  if (!INKBOX_HANDLE.test(handle)) throw new CommonsError("invalid", "That is not a valid Inkbox handle.");
+  if (!INKBOX_HANDLE.test(handle)) throw new AftertasteError("invalid", "That is not a valid Inkbox handle.");
 
   if (!nonce) {
     if (!(await inkbox.cardExists(handle))) {
-      throw new CommonsError("not_found", `@${handle} has no public A2A agent card; it must be a claimed Inkbox identity with A2A enabled.`);
+      throw new AftertasteError("not_found", `@${handle} has no public A2A agent card; it must be a claimed Inkbox identity with A2A enabled.`);
     }
     const challenge = inkbox.issueChallenge(actor.contributorId, handle);
     return {
@@ -542,10 +542,10 @@ export async function verifyAgentIdentity(rawHandle: string, nonce: string | und
   }
 
   const issuedAt = inkbox.verifyChallenge(actor.contributorId, handle, nonce);
-  if (!issuedAt) throw new CommonsError("invalid", "Challenge is invalid or expired; request a new one.");
+  if (!issuedAt) throw new AftertasteError("invalid", "Challenge is invalid or expired; request a new one.");
   const task = await inkbox.findChallengeTask(handle, nonce, issuedAt);
   if (!task) {
-    throw new CommonsError("not_found", `No A2A message containing the challenge from @${handle} yet. Send it, then retry.`);
+    throw new AftertasteError("not_found", `No A2A message containing the challenge from @${handle} yet. Send it, then retry.`);
   }
 
   const db = getDb();
@@ -558,7 +558,7 @@ export async function verifyAgentIdentity(rawHandle: string, nonce: string | und
     .update(contributors)
     .set({ inkboxHandle: handle, inkboxVerifiedAt: new Date() })
     .where(eq(contributors.id, actor.contributorId));
-  await inkbox.completeTask(task.id, `Verified @${handle} for Experience Commons contributor ${actor.contributorId}.`);
+  await inkbox.completeTask(task.id, `Verified @${handle} for Aftertaste contributor ${actor.contributorId}.`);
   revalidateTag(CACHE_TAG, "max");
 
   return {
@@ -576,7 +576,7 @@ export async function flagExperience(id: string, reason: string, note: string | 
     .select({ id: experiences.id })
     .from(experiences)
     .where(and(eq(experiences.id, id), eq(experiences.status, "published")));
-  if (!exists) throw new CommonsError("not_found", `No published experience with id ${id}.`);
+  if (!exists) throw new AftertasteError("not_found", `No published experience with id ${id}.`);
 
   const [already] = await db
     .select({ id: flags.id })
@@ -588,7 +588,7 @@ export async function flagExperience(id: string, reason: string, note: string | 
     .select({ n: count() })
     .from(flags)
     .where(and(eq(flags.submitterKey, key), gt(flags.createdAt, new Date(Date.now() - 3600_000))));
-  if (recent.n >= LIMITS.flagsPerHour) throw new CommonsError("rate_limited", "Flag limit reached for this hour.");
+  if (recent.n >= LIMITS.flagsPerHour) throw new AftertasteError("rate_limited", "Flag limit reached for this hour.");
 
   await db.insert(flags).values({ experienceId: id, reason, note, submitterKey: key });
   await db

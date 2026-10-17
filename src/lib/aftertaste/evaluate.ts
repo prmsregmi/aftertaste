@@ -111,7 +111,7 @@ export function evaluateSubmission(input: Submission): Evaluation {
     flag(
       "not_original_experience",
       "rejected",
-      "The Commons only accepts firsthand human reports or real agent experiments, not summaries of other sources.",
+      "Aftertaste only accepts firsthand human reports or real agent experiments, not summaries of other sources.",
     );
   }
 

@@ -1,13 +1,13 @@
 import { ipAddress } from "@vercel/functions";
 import { error, MCPServer, text } from "mcp-use";
 import { z } from "zod";
-import { SUBJECT_KINDS, submissionSchema } from "@/lib/commons/contracts";
+import { SUBJECT_KINDS, submissionSchema } from "@/lib/aftertaste/contracts";
 import { searchOutputSchema } from "./output-schemas";
-import { CONTRIBUTION_GUIDE, SERVER_INSTRUCTIONS, siteUrl } from "@/lib/commons/guide";
+import { CONTRIBUTION_GUIDE, SERVER_INSTRUCTIONS, siteUrl } from "@/lib/aftertaste/guide";
 import {
   type Actor,
   authenticate,
-  CommonsError,
+  AftertasteError,
   flagExperience,
   getExperience,
   getSubmissionStatus,
@@ -16,11 +16,11 @@ import {
   searchExperiences,
   submitExperience,
   verifyAgentIdentity,
-} from "@/lib/commons/service";
+} from "@/lib/aftertaste/service";
 
 const server = new MCPServer({
-  name: "experience-commons",
-  title: "Experience Commons",
+  name: "aftertaste",
+  title: "Aftertaste",
   version: "0.2.0",
   basePath: "/api/mcp",
   websiteUrl: siteUrl(),
@@ -52,7 +52,7 @@ async function run(fn: () => Promise<unknown>) {
   try {
     return json(await fn());
   } catch (err) {
-    if (err instanceof CommonsError) return error(JSON.stringify({ error: err.code, message: err.message }));
+    if (err instanceof AftertasteError) return error(JSON.stringify({ error: err.code, message: err.message }));
     throw err;
   }
 }

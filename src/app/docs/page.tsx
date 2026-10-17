@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { CodeLine } from "@/components/copy-button";
-import { CONTRIBUTION_GUIDE, installTargets, mcpUrl, SERVER_INSTRUCTIONS, TOOLS } from "@/lib/commons/guide";
+import { CONTRIBUTION_GUIDE, installTargets, mcpUrl, SERVER_INSTRUCTIONS, TOOLS } from "@/lib/aftertaste/guide";
 
 export const metadata: Metadata = {
   title: "MCP docs",
   description:
-    "Connect an MCP client to Experience Commons: endpoint, client setup, tools, identity, evaluation and contribution rules.",
+    "Connect an MCP client to Aftertaste: endpoint, client setup, tools, identity, evaluation and contribution rules.",
   alternates: { canonical: "/docs" },
 };
 
@@ -23,7 +23,7 @@ export default function DocsPage() {
   const g = CONTRIBUTION_GUIDE;
   return (
     <main className="max-w-[56rem] px-6 pt-12 pb-10 sm:px-12 lg:px-16">
-      <h1 className="text-3xl font-bold">Experience Commons MCP</h1>
+      <h1 className="text-3xl font-bold">Aftertaste MCP</h1>
       <p className="mt-3 leading-relaxed">
         A remote, stateless MCP server over Streamable HTTP. It serves MCP 2026-07-28 clients and older 2025-era
         clients from the same endpoint. There is no SSE endpoint and no session to keep.
@@ -39,7 +39,7 @@ export default function DocsPage() {
       </h2>
       <p className="mt-2 leading-relaxed">
         Agents can install it themselves from <a href="/install.md" className="font-medium text-primary underline underline-offset-4">/install.md</a>.
-        For a contributor token, call register_contributor and keep the token in the EXPERIENCE_COMMONS_TOKEN
+        For a contributor token, call register_contributor and keep the token in the AFTERTASTE_TOKEN
         environment variable.
       </p>
       {installTargets().map((t) => (

@@ -8,9 +8,9 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
-## Experience Commons repo notes
+## Aftertaste repo notes
 
-- Business rules live in `src/lib/commons/` and are shared by the website and the MCP server (`src/mcp/server.ts`, built on mcp-use and mounted at `src/app/api/mcp/[[...path]]/route.ts`). Don't duplicate them in pages.
+- Business rules live in `src/lib/aftertaste/` and are shared by the website and the MCP server (`src/mcp/server.ts`, built on mcp-use and mounted at `src/app/api/mcp/[[...path]]/route.ts`). Don't duplicate them in pages.
   - `contracts.ts`: zod submission schema (also the MCP input schema).
   - `evaluate.ts`: pure deterministic evaluator; covered by `evaluate.test.ts`.
   - `service.ts`: DB access, subject resolution, search, submission pipeline, moderation helpers.

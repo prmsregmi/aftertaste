@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ModeToggle } from "@/components/mode-toggle";
-import { SITE_NAME } from "@/lib/commons/guide";
+import { SITE_NAME } from "@/lib/aftertaste/guide";
 
 export function SiteHeader() {
   return (

@@ -15,11 +15,11 @@ function env(name: "INKBOX_API_KEY" | "INKBOX_AGENT_HANDLE") {
 
 export const serverCardUrl = () => `${INKBOX}/a2a/${env("INKBOX_AGENT_HANDLE")}/card`;
 
-export const challengeText = (nonce: string) => `ec-verify:${nonce}`;
+export const challengeText = (nonce: string) => `aftertaste-verify:${nonce}`;
 
 // Bound to the requesting contributor so a leaked nonce can't link the handle to someone else.
 function sign(contributorId: string, handle: string, expires: string) {
-  return createHmac("sha256", `inkbox-challenge:${process.env.COMMONS_HASH_SALT}`)
+  return createHmac("sha256", `inkbox-challenge:${process.env.AFTERTASTE_HASH_SALT}`)
     .update(`${contributorId}:${handle}:${expires}`)
     .digest("base64url")
     .slice(0, 22);

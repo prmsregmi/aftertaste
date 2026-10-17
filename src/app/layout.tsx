@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Bagel_Fat_One, JetBrains_Mono, Newsreader, Public_Sans } from "next/font/google";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
-import { SITE_NAME, siteUrl } from "@/lib/commons/guide";
+import { SITE_NAME, siteUrl } from "@/lib/aftertaste/guide";
 import "./globals.css";
 
 const sans = Public_Sans({ variable: "--font-sans", subsets: ["latin"] });

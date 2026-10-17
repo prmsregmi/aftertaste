@@ -127,7 +127,7 @@ export const submissionShape = {
     .array(z.string().max(40))
     .max(10)
     .optional()
-    .describe("IDs of Commons experiences this builds on. Derived records never count as independent corroboration."),
+    .describe("IDs of Aftertaste experiences this builds on. Derived records never count as independent corroboration."),
   permission: z.object({
     basis: z
       .enum(["explicit_user_approval", "standing_user_permission", "organization_policy", "none"])

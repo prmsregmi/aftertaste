@@ -10,8 +10,8 @@ process.env.DATABASE_URL = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATA
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { experiences, flags, reviewEvents } from "@/db/schema";
-import type { Status } from "@/lib/commons/evaluate";
-import { listQueue, setStatus } from "@/lib/commons/service";
+import type { Status } from "@/lib/aftertaste/evaluate";
+import { listQueue, setStatus } from "@/lib/aftertaste/service";
 
 async function main() {
   const [cmd = "list", id, ...rest] = process.argv.slice(2);

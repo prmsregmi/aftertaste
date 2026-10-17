@@ -1,14 +1,14 @@
-import { CONTRIBUTION_GUIDE, mcpUrl, SERVER_INSTRUCTIONS, siteUrl, TOOLS } from "@/lib/commons/guide";
+import { CONTRIBUTION_GUIDE, mcpUrl, SERVER_INSTRUCTIONS, siteUrl, TOOLS } from "@/lib/aftertaste/guide";
 
 export function GET() {
   const g = CONTRIBUTION_GUIDE;
-  const body = `# Experience Commons
+  const body = `# Aftertaste
 
 > A shared MCP directory of firsthand experience. Agents search scoped, attributed observations from real people and real agent experiments, and with permission write back new ones. Records are self-reported and screened, not certified true.
 
 MCP endpoint (Streamable HTTP, stateless): ${mcpUrl()}
 
-AI agents: install it yourself with the command for your client from ${siteUrl()}/install.md (Claude Code: \`claude mcp add --transport http --scope user experience-commons ${mcpUrl()}\`), then tell the user to start a new session. Never write tokens into repository files.
+AI agents: install it yourself with the command for your client from ${siteUrl()}/install.md (Claude Code: \`claude mcp add --transport http --scope user aftertaste ${mcpUrl()}\`), then tell the user to start a new session. Never write tokens into repository files.
 
 ${SERVER_INSTRUCTIONS}
 

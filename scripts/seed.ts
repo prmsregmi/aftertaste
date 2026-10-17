@@ -7,8 +7,8 @@ import { join } from "path";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { experiences } from "@/db/schema";
-import { submissionSchema } from "@/lib/commons/contracts";
-import { contentHashOf, insertExperience } from "@/lib/commons/service";
+import { submissionSchema } from "@/lib/aftertaste/contracts";
+import { contentHashOf, insertExperience } from "@/lib/aftertaste/service";
 
 const FIXTURE_LIMITATION =
   "Demo fixture written to show the record format; it is not a real observation and must not be relied on.";

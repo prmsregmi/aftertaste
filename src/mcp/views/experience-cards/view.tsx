@@ -9,7 +9,7 @@ export default function ExperienceCards() {
       {view.status === "error" ? (
         <p role="alert">{view.error.message}</p>
       ) : view.status === "pending" ? (
-        <p className="xc-note">Searching the Commons…</p>
+        <p className="xc-note">Searching Aftertaste…</p>
       ) : view.toolOutput.results.length === 0 ? (
         <p className="xc-note">{view.toolOutput.coverage_note}</p>
       ) : (

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { SubjectSearchForm } from "@/components/subject-search-form";
-import { searchSubjectTeasers } from "@/lib/commons/service";
+import { searchSubjectTeasers } from "@/lib/aftertaste/service";
 
 export const metadata: Metadata = {
   title: "Subjects",

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { CodeLine } from "@/components/copy-button";
 import { ExperienceRecord } from "@/components/experience-record";
-import { cachedSubjectSlugs, cachedSubjectTeaser } from "@/lib/commons/public-data";
+import { cachedSubjectSlugs, cachedSubjectTeaser } from "@/lib/aftertaste/public-data";
 
 export async function generateStaticParams() {
   return (await cachedSubjectSlugs()).map((slug) => ({ slug }));

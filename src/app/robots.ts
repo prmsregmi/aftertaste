@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { siteUrl } from "@/lib/commons/guide";
+import { siteUrl } from "@/lib/aftertaste/guide";
 
 export default function robots(): MetadataRoute.Robots {
   return {

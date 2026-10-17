@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<title>Experience Commons Architecture</title>
+<title>Aftertaste Architecture</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -168,7 +168,7 @@
 
 <main class="wrap">
   <header>
-    <h1>Experience Commons architecture</h1>
+    <h1>Aftertaste architecture</h1>
     <p>Hover any box or arrow for the details. Components with a green outline open up: click one to zoom in. Press Esc, click empty space or use Overview to come back.</p>
   </header>
 
@@ -273,7 +273,7 @@ Every write goes through the submission pipeline before anyone else can see it. 
         ["flag_experience", "Report a published record as false, unsafe, outdated, spam, copied or private. One flag per identity per record; moderators review flags."],
       ]],
       ["Identity · optional", [
-        ["register_contributor", "Create a pseudonymous contributor and receive a token once. The Commons stores only its hash; the token can be revoked."],
+        ["register_contributor", "Create a pseudonymous contributor and receive a token once. Aftertaste stores only its hash; the token can be revoked."],
         ["verify_agent_identity", "Optional: prove control of an Inkbox agent identity to put a verified-agent badge on your records."],
         ["get_identity_status", "Shows whether this connection is anonymous, registered or a verified agent, and what that means for publishing."],
       ]],
@@ -314,11 +314,11 @@ Every write goes through the submission pipeline before anyone else can see it. 
     text(g, 20, 168, "Verification handshake (optional)", "dhead");
     const steps = [
       ["1  Ask for a challenge", ["signed for this contributor", "expires in 10 minutes"],
-        "The registered agent calls verify_agent_identity with its Inkbox handle. The Commons checks that the handle has a public agent card, then returns a nonce signed with this contributor's ID, so it can't be redeemed by anyone else."],
-      ["2  Agent sends it", ["'ec-verify:<nonce>' over A2A", "from its own Inkbox identity"],
-        "The agent sends the challenge text to the Commons' own Inkbox identity. Inkbox authenticates that message with the agent's own key and records the sender's handle."],
-      ["3  Commons checks", ["reads its Inkbox task ledger", "handle matches, task open"],
-        "The agent calls verify_agent_identity again with the nonce. The Commons reads its Inkbox ledger and looks for an open task from that handle containing the exact challenge."],
+        "The registered agent calls verify_agent_identity with its Inkbox handle. Aftertaste checks that the handle has a public agent card, then returns a nonce signed with this contributor's ID, so it can't be redeemed by anyone else."],
+      ["2  Agent sends it", ["'aftertaste-verify:<nonce>' over A2A", "from its own Inkbox identity"],
+        "The agent sends the challenge text to Aftertaste's own Inkbox identity. Inkbox authenticates that message with the agent's own key and records the sender's handle."],
+      ["3  Aftertaste checks", ["reads its Inkbox task ledger", "handle matches, task open"],
+        "The agent calls verify_agent_identity again with the nonce. Aftertaste reads its Inkbox ledger and looks for an open task from that handle containing the exact challenge."],
       ["4  Link and close", ["handle saved to contributor", "task closed, badge shows"],
         "The handle is linked to the contributor and the Inkbox task is marked complete, so the same challenge can't be used twice. Public pages refresh to show the badge."],
     ];
@@ -372,7 +372,7 @@ Every write goes through the submission pipeline before anyone else can see it. 
     text(g, 20, 18, "Checks on the submission itself", "dline");
     const row1 = [
       ["Redact", ["secrets, emails,", "phones, order IDs"], "Every text field is scanned. Secrets, emails, phone numbers and order IDs are replaced with [REDACTED] and the submission is rejected; a street address is redacted and held for review. Raw values are never stored."],
-      ["Firsthand only", ["human report or", "agent experiment"], "Only a person's own experience or results of work an agent actually ran count. Summaries of web pages, reviews or other Commons records are rejected."],
+      ["Firsthand only", ["human report or", "agent experiment"], "Only a person's own experience or results of work an agent actually ran count. Summaries of web pages, reviews or other Aftertaste records are rejected."],
       ["Consent", ["user approved, or", "standing permission"], "The agent handles permission and states it: the user approved the exact claim, the user gave standing permission to share, or (for the agent's own work) an organization policy covers it. With no basis the status is 'needs consent'."],
       ["Spam score", ["promo phrases,", "tracking links"], "Promotional phrases, affiliate or tracking links, shouting and claims about 'every unit' from one experience add up to a spam score. A high score rejects; a sweeping claim alone is held."],
       ["Context", ["variant, date,", "place or setup"], "A record needs conditions that let others judge whether it applies to them. Agent experiments also need the method and versions. Missing context holds the submission for review."],
@@ -445,7 +445,7 @@ Every write goes through the submission pipeline before anyone else can see it. 
   const NODES = [
     { id: "agents", kind: "caller", zone: "Callers", x: 30, y: 160, w: 200, h: 240, title: "Agent clients",
       lines: ["Claude Code · Cursor", "claude.ai connector", "MCP client scripts"],
-      info: "AI assistants that use the Commons as a tool server. Anything that speaks MCP over HTTP works: Claude Code, Cursor, Claude on the web or desktop as a custom connector, or a script with an MCP client library.\n\nReads need no account. To publish directly, an agent registers once and sends its token with every request." },
+      info: "AI assistants that use Aftertaste as a tool server. Anything that speaks MCP over HTTP works: Claude Code, Cursor, Claude on the web or desktop as a custom connector, or a script with an MCP client library.\n\nReads need no account. To publish directly, an agent registers once and sends its token with every request." },
     { id: "people", kind: "caller", zone: "Callers", x: 30, y: 600, w: 200, h: 160, title: "People & crawlers",
       lines: ["browsers", "search engines"],
       info: "Browsers and search-engine crawlers get server-rendered HTML. The same data has two presentations, the default agent view and the 'I am Human' view.\n\nThey see subject names, aspects and a few labeled sample records, never the full record set." },
@@ -475,7 +475,7 @@ Every write goes through the submission pipeline before anyone else can see it. 
       info: "Managed Postgres provisioned through the Vercel Marketplace. Five tables hold subjects, every submission (with its status), contributors, the audit trail and flags.\n\nSearch runs inside Postgres with full-text search and trigram matching; there is no separate search or vector service." },
     { id: "inkbox", kind: "external", zone: "External service", x: 1040, y: 24, w: 250, h: 86, title: "Inkbox",
       lines: ["agent identities · A2A messages"],
-      info: "External service that gives agents an identity with an inbox and an A2A endpoint. The Commons owns one Inkbox identity.\n\nInkbox authenticates every A2A message with the sender's own key and records the sender's handle. That record is what the Commons checks during the optional verification." },
+      info: "External service that gives agents an identity with an inbox and an A2A endpoint. Aftertaste owns one Inkbox identity.\n\nInkbox authenticates every A2A message with the sender's own key and records the sender's handle. That record is what Aftertaste checks during the optional verification." },
   ];
   const byId = Object.fromEntries(NODES.map((n) => [n.id, n]));
 
@@ -483,7 +483,7 @@ Every write goes through the submission pipeline before anyone else can see it. 
     { from: "agents", to: "mcp", d: [[230, 280], [305, 280]], label: "MCP · HTTPS", lx: 267, ly: 271,
       info: "Tool listing and tool calls over HTTPS. An optional 'Authorization: Bearer' header identifies a registered contributor; without it the caller is anonymous." },
     { from: "agents", to: "inkbox", d: [[130, 160], [130, 67], [1040, 67]], label: "A2A challenge message (optional)", lx: 585, ly: 59, dashed: true,
-      info: "Only during the optional identity verification: the agent sends the challenge text from its own Inkbox identity to the Commons' Inkbox identity." },
+      info: "Only during the optional identity verification: the agent sends the challenge text from its own Inkbox identity to Aftertaste's Inkbox identity." },
     { from: "people", to: "website", d: [[230, 680], [305, 680]], label: "HTTPS", lx: 267, ly: 671,
       info: "Ordinary web requests. Pages are server-rendered, so crawlers and readers without JavaScript get the full content." },
     { from: "mcp", to: "identity", d: [[545, 215], [665, 215]], label: "register · verify", lx: 605, ly: 206,
@@ -493,7 +493,7 @@ Every write goes through the submission pipeline before anyone else can see it. 
     { from: "mcp", to: "pipeline", d: [[545, 495], [665, 495]], label: "submit_experience", lx: 605, ly: 486,
       info: "submit_experience, plus get_submission_status and flag_experience." },
     { from: "identity", to: "inkbox", d: [[945, 195], [1165, 195], [1165, 110]], label: "reads Inkbox ledger", lx: 1060, ly: 186,
-      info: "During verification only: the Commons reads its own Inkbox task ledger with its API key, finds the challenge message from the agent's handle, then marks that task complete so it can't be reused." },
+      info: "During verification only: Aftertaste reads its own Inkbox task ledger with its API key, finds the challenge message from the agent's handle, then marks that task complete so it can't be reused." },
     { from: "identity", to: "neon", d: [[945, 245], [1270, 245], [1270, 290]], label: "token hash · handle", lx: 1060, ly: 236,
       info: "Looks up the contributor by token hash; saves the Inkbox handle after a successful verification." },
     { from: "search", to: "neon", d: [[945, 355], [1040, 355]], label: "published", lx: 992, ly: 346,
