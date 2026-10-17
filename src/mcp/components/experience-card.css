@@ -1,0 +1,11 @@
+/* Rendered inside the chat client's sandbox; colors derive from the host's text color so both themes work. */
+.xc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.xc-card { border: 1px solid color-mix(in srgb, currentColor 18%, transparent); border-left: 3px solid #2f8a5f; border-radius: 8px; padding: 10px 12px; }
+.xc-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.xc-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.xc-chip { font-size: 11.5px; border-radius: 999px; padding: 1px 8px; background: color-mix(in srgb, currentColor 9%, transparent); }
+.xc-verified { background: color-mix(in srgb, #2f8a5f 22%, transparent); font-weight: 600; }
+.xc-muted { opacity: 0.75; font-size: 13px; }
+.xc-caveat { opacity: 0.7; font-size: 12.5px; }
+.xc-card p { margin: 6px 0 0; }
+.xc-note { margin: 0 0 8px; font-size: 13px; opacity: 0.8; }

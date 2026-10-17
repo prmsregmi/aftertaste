@@ -14,5 +14,5 @@ export default withMcpUse(
       },
     },
   },
-  { entry: "./src/mcp/server.ts", basePath: "/api/mcp" },
+  { entry: "./src/mcp/server.ts", viewsDir: "src/mcp/views", basePath: "/api/mcp" },
 );

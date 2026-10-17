@@ -2,6 +2,7 @@ import { ipAddress } from "@vercel/functions";
 import { error, MCPServer, text } from "mcp-use";
 import { z } from "zod";
 import { SUBJECT_KINDS, submissionSchema } from "@/lib/commons/contracts";
+import { searchOutputSchema } from "./output-schemas";
 import { CONTRIBUTION_GUIDE, SERVER_INSTRUCTIONS, siteUrl } from "@/lib/commons/guide";
 import {
   type Actor,
@@ -70,7 +71,8 @@ server.tool(
   async () => json(CONTRIBUTION_GUIDE),
 );
 
-server.tool(
+// Bound to the experience-cards view: clients with MCP Apps render cards; others read the same JSON as text.
+export const searchExperiencesTool = server.tool(
   {
     name: "search_experiences",
     title: "Search experiences",
@@ -81,9 +83,14 @@ server.tool(
       kind: z.enum(SUBJECT_KINDS).optional().describe("Restrict to one subject kind."),
       limit: z.number().int().min(1).max(20).optional(),
     }),
+    outputSchema: searchOutputSchema,
+    view: { name: "experience-cards", description: "Experience records as compact cards", prefersBorder: false },
     annotations: READ,
   },
-  async ({ query, kind, limit }) => run(() => searchExperiences(query, { kind, limit })),
+  async ({ query, kind, limit }) => {
+    const data = await searchExperiences(query, { kind, limit });
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }], structuredContent: data };
+  },
 );
 
 server.tool(
