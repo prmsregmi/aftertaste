@@ -169,3 +169,7 @@
     @apply font-sans;
   }
 }
+/* Repeats the tape label visually without putting it in the DOM, so copied or crawled text stays clean. */
+.tape::before {
+  content: attr(data-text) "\2003\2003" attr(data-text) "\2003\2003" attr(data-text) "\2003\2003" attr(data-text) "\2003\2003" attr(data-text) "\2003\2003" attr(data-text) "\2003\2003" attr(data-text) "\2003\2003" attr(data-text);
+}

@@ -8,14 +8,13 @@ import { cachedSamples, cachedStats } from "@/lib/commons/public-data";
 import { cn } from "@/lib/utils";
 
 const PROMISES = [
-  { text: "Nothing is shared without your permission.", dot: "bg-highlight" },
-  { text: "Names, contact details, order numbers removed.", dot: "bg-human" },
-  { text: "Labeled as personal experience, never fact.", dot: "bg-primary text-primary-foreground" },
+  { text: "Your OK first", dot: "bg-highlight" },
+  { text: "No names or contacts", dot: "bg-human" },
+  { text: "Never shown as fact", dot: "bg-primary" },
 ];
 
 function assistantPrompt(url: string) {
-  return `Add Experience Commons as a connector, or tell me how: ${url}
-Check it before recommending products, places or services. When I say how something went, draft a review with my preferences, minus name and contacts. Share only after I approve.`;
+  return `Add the MCP connector ${url} (or tell me how). Check it before recommending things. When I tell you how something went, post an anonymous review once I approve.`;
 }
 
 export default function Home() {
@@ -62,35 +61,13 @@ export default function Home() {
         </h1>
 
         <div className="mx-auto max-w-5xl px-4 sm:px-6">
-          <p className="mt-8 max-w-2xl text-2xl leading-snug font-semibold text-balance sm:text-3xl">
-            Your AI can share what you learned, so the next person gets answers, not guesses.
-          </p>
-
-          <div className="mt-12 grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_16rem]">
-            <div>
-              <PromptNote value={assistantPrompt(mcpUrl())} />
-              <p className="mt-8 text-sm leading-relaxed text-muted-foreground">
-                By hand: paste <code className="font-mono text-foreground wrap-anywhere">{mcpUrl()}</code> in Claude
-                (Customize › Connectors › Add custom connector) or ChatGPT (chatgpt.com/plugins › + › Add custom MCP
-                server).
-              </p>
-            </div>
-
-            <ul className="grid gap-5 sm:grid-cols-3 lg:mt-8 lg:grid-cols-1">
+          <div className="mt-10 max-w-2xl">
+            <PromptNote value={assistantPrompt(mcpUrl())} />
+            <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-lg font-semibold">
               {PROMISES.map((p) => (
-                <li key={p.text} className="flex items-start gap-3 text-lg leading-snug font-semibold">
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "grid size-9 shrink-0 place-items-center rounded-full border-2 border-foreground",
-                      p.dot,
-                    )}
-                  >
-                    <svg viewBox="0 0 16 16" className="size-4">
-                      <path d="m3.5 8.5 3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2.5" />
-                    </svg>
-                  </span>
-                  <span className="pt-1">{p.text}</span>
+                <li key={p.text} className="flex items-center gap-2">
+                  <span aria-hidden className={cn("size-3.5 rounded-full border-2 border-foreground", p.dot)} />
+                  {p.text}
                 </li>
               ))}
             </ul>
@@ -131,15 +108,12 @@ function Tape({ text, className }: { text: string; className?: string }) {
   return (
     <span
       aria-hidden
+      data-text={text}
       className={cn(
-        "-mx-[10vw] flex gap-12 overflow-hidden border-y-[3px] border-foreground py-2 font-display text-2xl leading-tight font-normal whitespace-nowrap text-foreground uppercase sm:text-4xl",
+        "tape -mx-[10vw] block overflow-hidden border-y-[3px] border-foreground py-2 font-display text-2xl leading-tight font-normal whitespace-nowrap text-foreground uppercase sm:text-4xl",
         className,
       )}
-    >
-      {Array.from({ length: 16 }, (_, i) => (
-        <span key={i}>{text}</span>
-      ))}
-    </span>
+    />
   );
 }
 
@@ -147,7 +121,7 @@ async function Stats() {
   const s = await cachedStats();
   return (
     <p className="text-sm text-muted-foreground">
-      {s.published} published, {s.fixtures} of them demo fixtures · {s.held} held or rejected
+      {s.published} published · {s.fixtures} demo
     </p>
   );
 }

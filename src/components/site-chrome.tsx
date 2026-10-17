@@ -34,8 +34,7 @@ export function SiteFooter() {
   return (
     <footer className="mt-16 border-t border-border">
       <p className="mx-auto max-w-5xl px-4 py-6 text-sm text-muted-foreground sm:px-6">
-        Records are self-reported and screened for privacy, spam and originality, not certified true. Full records are
-        available over MCP only.
+        Self-reported and screened, never certified true.
       </p>
     </footer>
   );
