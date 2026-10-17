@@ -5,14 +5,14 @@ Short record of research-backed choices, demo compromises and open questions. On
 ## Stack
 
 - **Next.js 16.4 App Router on Vercel, Cache Components on.** Public pages read through `'use cache'` helpers tagged `commons`; a publish calls `revalidateTag('commons', 'max')` so counts and samples refresh without a redeploy.
-- **MCP via `mcp-handler` 2.3 + `@modelcontextprotocol/server` 2.3.** One stateless Streamable HTTP endpoint at `/api/mcp` serves both 2026-07-28 and 2025-era clients; no Redis, no sessions, no SSE endpoint. `@modelcontextprotocol/sdk` 1.x is not used because it only pairs with mcp-handler 1.x.
+- **MCP server built on mcp-use 2.10, embedded in the Next app on Vercel** (`src/mcp/server.ts`, mounted by `createNextHandler` at `/api/mcp/[[...path]]`, built by `withMcpUse` in `next.config.ts`). It replaced an equivalent mcp-handler 2.3 server at the user's request; both sit on `@modelcontextprotocol/server` 2.3.1, so behavior is unchanged. One stateless Streamable HTTP endpoint serves 2026-07-28 and 2025-era clients (both verified). Manufact cloud hosting was not used, to keep one deployment on Vercel and avoid free-tier cold starts during a live demo.
 - **Neon Postgres + Drizzle + `pg` Pool with `attachDatabasePool`.** Neon and Vercel both recommend a pooled TCP client on Fluid Compute over the HTTP driver; the pool is kept small (`max: 5`).
 - **Plain-text tool results (JSON in a text block), no `outputSchema`.** Every client can read them; structured output can be added once the shapes settle.
 
 ## Identity
 
 - **Anonymous read and anonymous write, but anonymous writes never publish automatically.** They land in `pending_review` with reason `anonymous_queue`.
-- **Registered contributors get a platform-issued random bearer token** (shown once, stored as SHA-256, revocable via `contributors.status`). Sent as `Authorization: Bearer`, verified with `withMcpAuth(..., { required: false })`. An unrecognized token degrades to anonymous with an explicit warning in the tool result instead of a 401, because Claude Code treats 401 as "start OAuth".
+- **Registered contributors get a platform-issued random bearer token** (shown once, stored as SHA-256, revocable via `contributors.status`). Sent as `Authorization: Bearer`, parsed from the request header inside each tool (mcp-use's built-in auth is OAuth-only and would make the token mandatory). An unrecognized token degrades to anonymous with an explicit warning in the tool result instead of a 401, because Claude Code treats 401 as "start OAuth".
 - **No OAuth, A2A agent card or Web Bot Auth.** MCP OAuth would block the demo on client support; A2A cards are discovery documents for A2A agents, which this server is not. Identity is never shown as factual verification.
 
 ## Evaluation

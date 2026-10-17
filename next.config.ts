@@ -1,17 +1,18 @@
-import type { NextConfig } from "next";
+import { withMcpUse } from "mcp-use/next";
 
-const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
-  turbopack: {
-    rules: {
-      "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
-        as: "*.css",
+// Inline config object: annotating it as NextConfig conflicts with mcp-use's turbopack alias type.
+export default withMcpUse(
+  {
+    cacheComponents: true,
+    partialPrefetching: true,
+    turbopack: {
+      rules: {
+        "*.css": {
+          loaders: ["@tailwindcss/turbopack"],
+          as: "*.css",
+        },
       },
     },
   },
-};
-
-export default nextConfig;
+  { entry: "./src/mcp/server.ts", basePath: "/api/mcp" },
+);
