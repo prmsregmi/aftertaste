@@ -117,11 +117,12 @@ const handler = createMcpHandler(
       "get_submission_status",
       {
         title: "Submission status",
-        description: "Return the moderation status of a submission by ID, with reason codes and an explanation.",
+        description:
+          "Return the moderation status of a submission by ID, with reason codes and an explanation. Unpublished submissions are visible only to the identity (token or network) that submitted them.",
         inputSchema: z.object({ id: z.string().min(4).max(40) }),
         annotations: READ,
       },
-      async ({ id }) => run(() => getSubmissionStatus(id)),
+      async ({ id }, ctx) => run(() => getSubmissionStatus(id, actorOf(ctx))),
     );
 
     server.registerTool(

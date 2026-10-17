@@ -103,7 +103,9 @@ async function main() {
     const full = await call(b, "get_experience", { id: submitted.id });
     console.log(`  get_experience -> ${full.observations.length} observations, limitations: "${full.limitations}"`);
   }
-  console.log(`  status of spam: ${(await call(b, "get_submission_status", { id: spamResult.id })).status}`);
+  console.log(`  submitter sees spam status: ${(await call(a, "get_submission_status", { id: spamResult.id })).status}`);
+  const probe = await b.callTool({ name: "get_submission_status", arguments: { id: spamResult.id } });
+  console.log(`  another identity can read it: ${!probe.isError}`);
 
   console.log(`\nCreated: ${[submitted.id, spamResult.id, anonResult.id].join(" ")}`);
   await Promise.all([a.close(), b.close(), anon.close()]);

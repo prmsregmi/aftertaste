@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, count, desc, eq, gt, inArray, ne, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, ne, or, sql } from "drizzle-orm";
 import { revalidateTag } from "next/cache";
 import { getDb } from "@/db";
 import { contributors, experiences, flags, reviewEvents, subjects } from "@/db/schema";
@@ -64,30 +64,39 @@ async function recentCount(submitter: string, since: Date) {
 }
 
 // Deterministic first: slug, exact name/alias, then trigram similarity within the same kind.
-export async function resolveSubject(input: Submission["subject"]) {
+// Unpublished submissions can't shape subjects: fuzzy and alias matches only consider subjects with
+// published records, and brand/location/aliases are stored only from submissions that publish.
+export async function resolveSubject(input: Submission["subject"], trusted: boolean) {
   const db = getDb();
   const slug = slugify(input.location ? `${input.name} ${input.location}` : input.name);
   const { rows } = await db.execute<{ id: string; slug: string; name: string }>(sql`
-    select id, slug, name from subjects
+    select id, slug, name from subjects s
     where slug = ${slug}
        or lower(name) = lower(${input.name})
-       or exists (select 1 from unnest(aliases) a where lower(a) = lower(${input.name}))
-       or (kind = ${input.kind} and similarity(name, ${input.name}) > 0.6)
+       or (exists (select 1 from experiences e where e.subject_id = s.id and e.status = 'published')
+           and (exists (select 1 from unnest(aliases) a where lower(a) = lower(${input.name}))
+                or (kind = ${input.kind} and similarity(name, ${input.name}) > 0.6)))
     order by (slug = ${slug}) desc, similarity(name, ${input.name}) desc
     limit 1`);
-  if (rows[0]) return rows[0];
+
+  const meta = trusted ? { brand: input.brand, location: input.location, aliases: input.aliases ?? [] } : {};
+  if (rows[0]) {
+    if (trusted) {
+      await db
+        .update(subjects)
+        .set({
+          brand: sql`coalesce(${subjects.brand}, ${input.brand ?? null})`,
+          location: sql`coalesce(${subjects.location}, ${input.location ?? null})`,
+          aliases: sql`case when cardinality(${subjects.aliases}) = 0 then ${sql.param(meta.aliases)}::text[] else ${subjects.aliases} end`,
+        })
+        .where(eq(subjects.id, rows[0].id));
+    }
+    return rows[0];
+  }
 
   const [created] = await db
     .insert(subjects)
-    .values({
-      id: newId("sub"),
-      slug,
-      name: input.name,
-      kind: input.kind,
-      brand: input.brand,
-      location: input.location,
-      aliases: input.aliases ?? [],
-    })
+    .values({ id: newId("sub"), slug, name: input.name, kind: input.kind, ...meta })
     .onConflictDoUpdate({ target: subjects.slug, set: { slug } })
     .returning({ id: subjects.id, slug: subjects.slug, name: subjects.name });
   return created;
@@ -109,7 +118,7 @@ type InsertOptions = {
 
 export async function insertExperience(s: Submission, contentHash: string, opts: InsertOptions) {
   const db = getDb();
-  const subject = await resolveSubject(s.subject);
+  const subject = await resolveSubject(s.subject, opts.status === "published");
   const id = newId("exp");
   await db.insert(experiences).values({
     id,
@@ -215,14 +224,20 @@ export async function submitExperience(input: Submission, actor: Actor) {
     if (status === "published" || to === "rejected") status = to;
   };
 
-  // Hash the redacted text so a resubmission with only the secret removed is still treated as a duplicate.
+  // Rejected records don't block a corrected resubmission.
   const contentHash = contentHashOf(redacted);
   const [dupe] = await db
-    .select({ id: experiences.id })
+    .select({ id: experiences.id, status: experiences.status, submitterKey: experiences.submitterKey })
     .from(experiences)
     .where(and(eq(experiences.contentHash, contentHash), ne(experiences.status, "rejected")));
   if (dupe) {
-    hold("duplicate_submission", `Same content already exists as ${dupe.id}.`, "rejected");
+    // Only reveal the ID when the caller could see it anyway, so this can't probe others' unpublished records.
+    const visible = dupe.status === "published" || dupe.submitterKey === key;
+    hold(
+      "duplicate_submission",
+      visible ? `Same content already exists as ${dupe.id}.` : "Same content was already submitted.",
+      "rejected",
+    );
   } else if (status !== "rejected") {
     const { rows } = await db.execute<{ id: string }>(sql`
       select id from experiences
@@ -418,7 +433,8 @@ export async function getExperience(id: string) {
   };
 }
 
-export async function getSubmissionStatus(id: string) {
+// Visible to the original submitter, or to anyone once published.
+export async function getSubmissionStatus(id: string, actor: Actor) {
   const [row] = await getDb()
     .select({
       id: experiences.id,
@@ -428,8 +444,13 @@ export async function getSubmissionStatus(id: string) {
       updatedAt: experiences.updatedAt,
     })
     .from(experiences)
-    .where(eq(experiences.id, id));
-  if (!row) throw new CommonsError("not_found", `No submission with id ${id}.`);
+    .where(
+      and(
+        eq(experiences.id, id),
+        or(eq(experiences.status, "published"), eq(experiences.submitterKey, submitterKey(actor))),
+      ),
+    );
+  if (!row) throw new CommonsError("not_found", `No submission with id ${id} visible to this identity.`);
   return {
     id: row.id,
     status: row.status,
