@@ -17,17 +17,23 @@ export interface PublicRecord {
 }
 
 const SOURCE_LABEL: Record<string, string> = {
-  human_firsthand: "Firsthand human report",
+  human_firsthand: "Firsthand report",
   agent_experiment: "Agent experiment",
 };
 
 const EVIDENCE_LABEL: Record<string, string> = {
-  firsthand_unverified: "Unverified",
-  evidence_attached: "Evidence described, not checked",
-  reproduced: "Independently reproduced",
+  firsthand_unverified: "unverified",
+  evidence_attached: "evidence described, not checked",
+  reproduced: "independently reproduced",
 };
 
 export function ExperienceRecord({ record }: { record: PublicRecord }) {
+  const meta = [
+    record.isDemoFixture ? "Demo fixture" : SOURCE_LABEL[record.sourceType],
+    EVIDENCE_LABEL[record.evidenceTier],
+    record.observedOn,
+  ].filter(Boolean);
+
   return (
     <article
       className={cn(
@@ -37,53 +43,29 @@ export function ExperienceRecord({ record }: { record: PublicRecord }) {
         !record.isDemoFixture && record.sourceType === "human_firsthand" && "border-firsthand",
       )}
     >
-      <p className="text-sm text-muted-foreground">
-        <Link href={`/subjects/${record.subjectSlug}`} className="font-medium text-foreground underline-offset-4 hover:underline">
+      <p className="text-sm">
+        <Link href={`/subjects/${record.subjectSlug}`} className="font-semibold underline-offset-4 hover:underline">
           {record.subjectName}
         </Link>
-        {record.variant && <span>, {record.variant}</span>}
+        {record.variant && <span className="text-muted-foreground">, {record.variant}</span>}
       </p>
-      {record.contributor.kind === "registered" && (
-        <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          Contributed by {record.contributor.label}
-          {record.contributor.verified_agent && (
-            <span
-              title="This contributor proved control of an Inkbox agent identity. It does not verify the claim."
-              className="inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground"
-            >
-              <svg viewBox="0 0 16 16" aria-hidden className="size-3">
-                <path d="m3.5 8.5 3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2" />
-              </svg>
-              Verified agent {record.contributor.verified_agent.split(" ")[0]}
-            </span>
-          )}
-        </p>
-      )}
       <p className="mt-1.5 max-w-prose leading-relaxed">{record.summary}</p>
-      <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
-        <div className="flex gap-1.5">
-          <dt className="text-muted-foreground">Source</dt>
-          <dd className={cn(record.isDemoFixture ? "font-semibold text-fixture" : "font-medium")}>
-            {record.isDemoFixture ? "Demo fixture" : SOURCE_LABEL[record.sourceType]}
-          </dd>
-        </div>
-        <div className="flex gap-1.5">
-          <dt className="text-muted-foreground">Evidence</dt>
-          <dd>{EVIDENCE_LABEL[record.evidenceTier]}</dd>
-        </div>
-        {record.observedOn && (
-          <div className="flex gap-1.5">
-            <dt className="text-muted-foreground">Observed</dt>
-            <dd>{record.observedOn}</dd>
-          </div>
+      <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+        <span className={cn(record.isDemoFixture && "font-semibold text-fixture")}>{meta.join(" · ")}</span>
+        {record.contributor.kind === "registered" && <span>· {record.contributor.label}</span>}
+        {record.contributor.verified_agent && (
+          <span
+            title="This contributor proved control of an Inkbox agent identity. It does not verify the claim."
+            className="inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden className="size-3">
+              <path d="m3.5 8.5 3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2" />
+            </svg>
+            Verified agent {record.contributor.verified_agent.split(" ")[0]}
+          </span>
         )}
-        <div className="flex gap-1.5">
-          <dt className="text-muted-foreground">Aspects</dt>
-          <dd>{record.aspects.join(", ")}</dd>
-        </div>
-      </dl>
-      <p className="mt-3 text-sm text-muted-foreground">{record.caveat}</p>
-      <p className="mt-2 font-mono text-xs text-muted-foreground">get_experience {record.id}</p>
+      </p>
+      {!record.isDemoFixture && <p className="mt-2 text-sm text-muted-foreground">{record.caveat}</p>}
     </article>
   );
 }
