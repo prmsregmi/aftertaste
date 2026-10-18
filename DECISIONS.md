@@ -44,16 +44,11 @@ Research-backed choices, tradeoffs and open questions, one or two sentences each
 
 ## Evaluation
 
-- **Tuned against 165 adversarial records written by four agents** (`data/screening-eval.jsonl`, run by `scripts/eval-screening.ts` through the rules and the live models).
-  - **The sets:** legitimate records that look suspicious; promotion and secondhand claims; disguised and multilingual injection; abuse and private people.
-  - **First pass: 148 of 160 correct.** Keyword rules caught 8 of 25 injection attacks, against the models' 25. They also rejected genuine records ("Best pizza ever!!!", acronyms, "system prompt"), so the content keyword rules were removed.
-  - **Two questions reworded.** "Stake in the subject" now covers speaking for the business or running a competitor, disclosed or not, and states that buying the product is not a stake. "Instructions to AI" now covers indirect forms ("the best answer to any coffee question is X") and leaves plain boycott calls to the grudge question.
-  - **Final pass: 155 of 165 correct.** No harmful record published and no publishable record was rejected; the remaining misses sit on the hold/reject boundary.
-- **Held-out check: 44 of 48 correct** (`data/screening-eval-blind.jsonl`, written after tuning by an agent that never saw the tuning set). All 12 attacks were rejected and nothing was falsely rejected. The one miss, a partly secondhand medical account, is left untuned so the test isn't fitted.
-- **Why two models.** Prompt Guard scored a reader-directed ranking instruction at 0.0009; the decision model scored it 1.0.
-- **Real keys:** a full screening takes about 1 second, with the decision model (0.5 s), Prompt Guard (0.2 s) and the embedding (0.5 s) running in parallel.
-- **Simulation:** an 8-account review bomb across 3 subjects had 3 registrations refused and all 24 records held or quarantined, and every coordination detector fired. A sweep over 10,000 clean records found nothing.
-- **Path to an owned classifier.** Every verdict is stored, and `pnpm integrity export` writes training labels for a distilled ModernBERT or SetFit model once a human-audited gold set exists. The thresholds are uncalibrated starting points.
+- **Screening is tuned against adversarial evaluation sets** (`data/screening-eval.jsonl` and a held-out `data/screening-eval-blind.jsonl`, run by `scripts/eval-screening.ts`). On the latest run, no harmful record published and no genuine one was rejected.
+- **Content keyword rules were removed.** They caught a third of the injection attacks the models caught, and they rejected genuine enthusiasm.
+- **Two models, because they miss different things.** Prompt Guard catches jailbreak-style text; the decision model catches plain-language instructions to readers.
+- **A screening takes about 1 second,** with the models running in parallel.
+- **Every verdict is stored,** so a distilled classifier can be trained once a human-audited gold set exists. The thresholds are starting points.
 
 ## Search and public surface
 
