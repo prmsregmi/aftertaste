@@ -19,13 +19,7 @@ What still needs doing. Delete items when they're done; decisions and their reas
 
 ## Now
 
-1. **User review pending (uncommitted in the working tree).**
-   - `README.md`, rewritten by an agent: logo header, motto, install, an architecture diagram focused on screening. It is about half the old length.
-   - Consent-first wording in the server instructions, `CONTRIBUTION_GUIDE`, and the `submit_experience` / `get_contribution_guide` descriptions: offer proactively, send only with consent, and "Aftertaste never reads conversations or asks for data".
-   - The new `/privacy` page (`PRIVACY` in `guide.ts`), linked from the server instructions, `/install.md`, `/llms.txt` and the sitemap.
-
-   It came from a real install attempt: an agent read "contribute without being asked" as auto-submission and recommended a search-only install. After approval, commit, then add the consent and privacy decisions to DECISIONS.md.
-2. **Real-key checks.** All three providers stay on and get validated before rollout.
+1. **Real-key checks.** All three providers stay on and get validated before rollout.
 
    **Setup.** Use the local DB: `docker start aftertaste-pg`, or create it with `docker run -d --name aftertaste-pg -e POSTGRES_PASSWORD=pg -p 54329:5432 pgvector/pgvector:pg16`. Then, in the shell only (never edit `.env.local`), export `DATABASE_URL=postgresql://postgres:pg@localhost:54329/postgres` and `AFTERTASTE_HASH_SALT=local`, and unset `DATABASE_URL_UNPOOLED`. Run `pnpm exec drizzle-kit migrate` and `pnpm exec tsx scripts/seed.ts` if the DB is new.
 
@@ -44,14 +38,13 @@ What still needs doing. Delete items when they're done; decisions and their reas
      - `pnpm exec tsx scripts/integrity.ts ranges` should load the Tor, X4BNet, OpenAI-connector and Anthropic lists; the Tor and OpenAI fetches failed once in a sandbox;
      - with `IPINFO_TOKEN` set, ASN and country should appear in `request_signals`;
      - a real client (Claude Code) should fill `client_name`.
-3. **Rollout** (the user deploys):
+2. **Rollout** (the user deploys):
    1. `vercel env run -e production -- pnpm exec drizzle-kit migrate`, immediately followed by step 3. Migration 0004 renames `is_demo_fixture` to `is_seed`, so the live build's record queries fail until the new deploy lands.
    2. Add `GROQ_API_KEY`, `OPENAI_API_KEY`, `IPINFO_TOKEN` and `CRON_SECRET` on Vercel. AI Gateway uses OIDC there.
    3. `vercel deploy --prod --yes`.
    4. `vercel env run -e production -- pnpm exec tsx scripts/integrity.ts sweep` once.
    5. Optional: a Vercel WAF rate-limit rule on `/api/mcp`. Keep BotID and Bot Protection off that route.
-4. **Tune the give-to-get numbers** (20 / 50 / +25 / 500 cap / 30 days, in `src/lib/aftertaste/allowance.ts`) with the give-to-get research. Update DECISIONS.md if they change.
-5. **Known gaps**:
+3. **Known gaps**:
    - The thresholds in `rubric.ts`, `behavior.ts`, `network.ts` and `pipeline.ts` are uncalibrated; label 300–500 records and recalibrate.
    - Seed records have no embeddings, so paraphrase search only covers new records.
    - The cron is daily because Hobby rejects more frequent schedules.
@@ -63,7 +56,7 @@ Three sponsor tracks. Confirm with the organizers whether one project can enter 
 | Track | Prize | Still needed |
 |---|---|---|
 | Manufact, "Best MCP server for agents" | 1st $2,000 + $6,000 credits | Rollout, item 2, item 3. Be ready to explain why it's on Vercel, not Manufact cloud: one deployment, no free-tier cold starts. |
-| Armature, "Build something agents use" (coding agents, no human in the loop) | Winner $2,000, runner-up $1,000 | Items 2 and 4; optionally item 6. The README rewrite no longer names Armature or the no-401 and policy-as-data points; restore them if this track matters. |
+| Armature, "Build something agents use" (coding agents, no human in the loop) | Winner $2,000, runner-up $1,000 | Items 2 and 4; optionally item 6. The README no longer names Armature or the no-401 and policy-as-data points; restore them if this track matters. |
 | Inkbox, persistent agent identity | 1st $1,000 + $1,000 credits | Item 5. Production has no Inkbox keys, so `verify_agent_identity` fails there today. |
 
 Skipped: Primitive (email; the follow-up email design below would be its entry), Blaxel, InstaBox.
@@ -71,7 +64,7 @@ Skipped: Primitive (email; the follow-up email design below would be its entry),
 ## Backlog
 
 ### 1. MCP descriptions (the user rewrites these by hand)
-Don't edit these texts unprompted, except the consent draft the user asked for (Now, item 1). They live in:
+Don't edit these texts unprompted. They live in:
 - `SERVER_INSTRUCTIONS`, `CONTRIBUTION_GUIDE` and `TOOLS` in `src/lib/aftertaste/guide.ts`;
 - the tool descriptions in `src/mcp/server.ts`;
 - the `.describe(...)` calls in `contracts.ts`;
@@ -125,6 +118,7 @@ A coding agent reads `/llms.txt`, installs the server, searches, registers and s
 - OAuth, so ChatGPT and Claude.ai users can contribute and get a metered identity. Check first that mcp-use keeps anonymous access alongside OAuth.
 - Contribute one real agent-experiment record (the mcp-handler → mcp-use migration, with measured latency).
 - Upgrade to mcp-use 2.10.1 (untested).
+- Search allowance: size the defaults from real logs. Meter ChatGPT users individually by `_meta["openai/subject"]` (only when the IP is in OpenAI's range) once mcp-use exposes it; until then each platform shares a 5,000-a-day pool.
 
 ### 9. Later ideas (from the original brief)
 - **Unanswered internet**: empty searches become demand signals.
