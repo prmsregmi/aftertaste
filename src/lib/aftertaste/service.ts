@@ -7,11 +7,11 @@ import { contributors, experiences, flags, reviewEvents, screenings, subjects } 
 import type { Submission } from "./contracts";
 import * as inkbox from "./inkbox";
 import { evaluateSubmission, type Status } from "./evaluate";
-import { SEARCH_ALLOWANCE, searchAllowanceFor } from "./allowance";
+import { nextUtcMidnight, SEARCH_ALLOWANCE, searchAllowanceFor } from "./allowance";
 import { newId, sha256 } from "./ids";
 import { screenContent } from "./integrity/classifiers";
 import { isPlatform, NETWORK_BLOCK_REGISTRATION, type RequestFingerprint } from "./integrity/network";
-import { assessNetwork, classifyIp, recordRequestSignal } from "./integrity/network-db";
+import { assessNetwork, classifyIp, ipv6BlockHashOf, recordRequestSignal } from "./integrity/network-db";
 import {
   assessSubmission,
   CONTENT_MESSAGES,
@@ -430,26 +430,39 @@ export function caveatFor(e: {
   return notes.join(" ");
 }
 
-// Counts one search against the caller's UTC day and returns what's left. Only published records that
-// still carry ranking weight earn credit. Connector users share their platform's egress IPs and can't
-// send a token, so an IP quota would throttle all of them together; they stay unmetered (null) until
-// OAuth gives them an identity.
-export async function useSearchAllowance(actor: Actor) {
-  if (!actor.contributorId && isPlatform(await classifyIp(actor.fingerprint?.ip ?? null))) return null;
-  const key = submitterKey(actor);
-  const { rows } = await getDb().execute<{ used: number; accepted: number }>(sql`
-    with bump as (
-      insert into search_usage (submitter_key, day, count)
-      values (${key}, (now() at time zone 'utc')::date, 1)
-      on conflict (submitter_key, day) do update set count = search_usage.count + 1
-      returning count)
-    select (select count from bump) as used,
-      (select count(*)::int from experiences
+// Contributions that earn search credit: published, still weighted, in the credit window, the first per
+// subject, and at most SEARCH_ALLOWANCE.creditsPerDay per UTC day.
+async function creditedContributions(key: string) {
+  const { rows } = await getDb().execute<{ credited: number }>(sql`
+    select coalesce(sum(least(n, ${SEARCH_ALLOWANCE.creditsPerDay})), 0)::int as credited from (
+      select day, count(*) as n from (
+        select distinct on (subject_id) (created_at at time zone 'utc')::date as day
+        from experiences
         where submitter_key = ${key} and status = 'published' and integrity_weight > 0
-          and created_at > now() - make_interval(days => ${SEARCH_ALLOWANCE.creditDays})) as accepted`);
-  const { used, accepted } = rows[0];
-  const limit = searchAllowanceFor(Boolean(actor.contributorId), accepted);
-  return { allowed: used <= limit, used, limit, remaining: Math.max(limit - used, 0), accepted };
+          and created_at > now() - make_interval(days => ${SEARCH_ALLOWANCE.creditDays})
+        order by subject_id, created_at) firsts
+      group by day) per_day`);
+  return rows[0]?.credited ?? 0;
+}
+
+// Counts one search against the caller's UTC day. A blocked search is not counted. Callers without a
+// token on Claude.ai or ChatGPT egress share one pool per platform, since those connectors can't send a
+// token and an IP quota would throttle all their users together.
+export async function useSearchAllowance(actor: Actor) {
+  const network = actor.contributorId ? null : await classifyIp(actor.fingerprint?.ip ?? null);
+  const pooled = network !== null && isPlatform(network);
+  const block = actor.contributorId || pooled ? null : ipv6BlockHashOf(actor.fingerprint?.ip ?? null);
+  const key = pooled ? `pool:${network}` : block ? `block:${block}` : submitterKey(actor);
+  const limit = pooled
+    ? SEARCH_ALLOWANCE.platformPool
+    : searchAllowanceFor(Boolean(actor.contributorId), await creditedContributions(submitterKey(actor)));
+  const { rows } = await getDb().execute<{ count: number }>(sql`
+    insert into search_usage as u (submitter_key, day, count)
+    values (${key}, (now() at time zone 'utc')::date, 1)
+    on conflict (submitter_key, day) do update set count = u.count + 1 where u.count < ${limit}
+    returning count`);
+  const used = rows[0]?.count ?? limit;
+  return { allowed: rows.length > 0, limit, remaining: Math.max(limit - used, 0), resetsAt: nextUtcMidnight() };
 }
 
 // Relevance = share of query terms present in the record + how much of the subject name appears in the query.

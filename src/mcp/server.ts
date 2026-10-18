@@ -4,7 +4,7 @@ import { z } from "zod";
 import { SUBJECT_KINDS, submissionSchema } from "@/lib/aftertaste/contracts";
 import { searchOutputSchema } from "./output-schemas";
 import { headerSetOf, uaFamilyOf } from "@/lib/aftertaste/integrity/network";
-import { allowanceUsedNote } from "@/lib/aftertaste/allowance";
+import { allowanceExhausted } from "@/lib/aftertaste/allowance";
 import { CONTRIBUTION_GUIDE, SERVER_INSTRUCTIONS, siteUrl } from "@/lib/aftertaste/guide";
 import {
   type Actor,
@@ -114,11 +114,18 @@ export const searchExperiencesTool = server.tool(
   },
   async ({ query, kind, limit }, ctx) => {
     const allowance = await useSearchAllowance(await actorOf(ctx));
-    const search_allowance = allowance && { remaining: allowance.remaining, daily_limit: allowance.limit };
-    const data =
-      !allowance || allowance.allowed
-        ? { ...(await searchExperiences(query, { kind, limit })), ...(search_allowance && { search_allowance }) }
-        : { query, results: [], coverage_note: allowanceUsedNote(allowance.limit), search_allowance };
+    if (!allowance.allowed) {
+      const exhausted = allowanceExhausted(allowance.limit, allowance.resetsAt);
+      return {
+        isError: true,
+        content: [{ type: "text", text: JSON.stringify(exhausted, null, 2) }],
+        structuredContent: { query, results: [], coverage_note: exhausted.message, search_allowance: exhausted },
+      };
+    }
+    const data = {
+      ...(await searchExperiences(query, { kind, limit })),
+      search_allowance: { remaining: allowance.remaining, daily_limit: allowance.limit, resets_at: allowance.resetsAt },
+    };
     return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }], structuredContent: data };
   },
 );

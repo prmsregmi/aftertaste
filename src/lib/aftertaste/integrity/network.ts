@@ -67,6 +67,21 @@ export function headerSetOf(headers: Headers): string {
 }
 
 // /24 for IPv4 and /48 for IPv6: one household, office or small hosting block.
+// IPv6 /64 block: one subscriber usually owns a whole /64, so per-address keys are trivial to rotate.
+export function ipv6BlockOf(ip: string): string | null {
+  if (!ip.includes(":") || /::ffff:\d+\.\d+\.\d+\.\d+$/i.test(ip)) return null;
+  const [head, tail = ""] = ip.split("::");
+  const left = head ? head.split(":") : [];
+  const right = tail ? tail.split(":") : [];
+  const groups = ip.includes("::")
+    ? [...left, ...Array(Math.max(0, 8 - left.length - right.length)).fill("0"), ...right]
+    : left;
+  return `${groups
+    .slice(0, 4)
+    .map((g) => (parseInt(g || "0", 16) || 0).toString(16))
+    .join(":")}::/64`;
+}
+
 export function prefixOf(ip: string): string {
   if (ip.includes(".") && !ip.includes(":")) {
     const parts = ip.split(".");
