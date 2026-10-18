@@ -11,7 +11,6 @@ import {
   QUESTIONS,
   recordForScreening,
   type ContentDecision,
-  type ModerationScores,
   type Probabilities,
   type Question,
 } from "./rubric";
@@ -22,7 +21,6 @@ export const MODELS = {
   decisionFallback: process.env.AFTERTASTE_DECISION_FALLBACK_MODEL ?? "openai/gpt-6-luna-decisions",
   injection: process.env.AFTERTASTE_INJECTION_MODEL ?? "meta-llama/llama-prompt-guard-2-86m",
   embedding: process.env.AFTERTASTE_EMBEDDING_MODEL ?? "openai/text-embedding-3-small",
-  moderation: "omni-moderation-latest",
 };
 
 // Any answer in this band means the primary decision model is unsure.
@@ -35,7 +33,6 @@ export type LayerResult = { layer: string; model: string; result: unknown; laten
 export type Providers = {
   decide?: (s: Submission, signal: AbortSignal) => Promise<Decision>;
   detectInjection?: (text: string, signal: AbortSignal) => Promise<number>;
-  moderate?: (text: string, signal: AbortSignal) => Promise<ModerationScores>;
   embed?: (text: string, signal: AbortSignal) => Promise<number[]>;
 };
 
@@ -99,18 +96,6 @@ async function promptGuard(text: string, signal: AbortSignal): Promise<number> {
   return Math.max(0, ...scores);
 }
 
-async function openaiModeration(text: string, signal: AbortSignal): Promise<ModerationScores> {
-  const res = await fetch("https://api.openai.com/v1/moderations", {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-    body: JSON.stringify({ model: MODELS.moderation, input: text }),
-    signal,
-  });
-  if (!res.ok) throw new Error(`moderation HTTP ${res.status}`);
-  const body = (await res.json()) as { results: { category_scores: ModerationScores }[] };
-  return body.results[0]?.category_scores ?? {};
-}
-
 async function gatewayEmbed(text: string, signal: AbortSignal): Promise<number[]> {
   const { embedding } = await embed({
     model: MODELS.embedding,
@@ -134,7 +119,6 @@ export function defaultProviders(): Providers {
     providers.embed = gatewayEmbed;
   }
   if (process.env.GROQ_API_KEY) providers.detectInjection = promptGuard;
-  if (process.env.OPENAI_API_KEY) providers.moderate = openaiModeration;
   return providers;
 }
 
@@ -149,9 +133,6 @@ export type ContentScreening = {
 
 export const embeddingText = (s: Submission) =>
   [s.subject.name, s.summary, ...s.observations.map((o) => `${o.aspect}: ${o.observation}`)].join("\n");
-
-const moderationText = (s: Submission) =>
-  [s.summary, ...s.observations.map((o) => o.observation), s.limitations, s.method ?? ""].join("\n");
 
 // Every free-text value the decision model reads, since an injection can hide in any field.
 const strings = (v: unknown): string[] =>
@@ -182,24 +163,21 @@ export async function screenContent(
   providers: Providers = defaultProviders(),
   deadlineMs = 15_000,
 ): Promise<ContentScreening> {
-  const configured = Boolean(providers.decide || providers.detectInjection || providers.moderate);
+  const configured = Boolean(providers.decide || providers.detectInjection);
   const layers: LayerResult[] = [];
   const signal = AbortSignal.timeout(deadlineMs);
 
-  const [decision, injection, moderation, embedding] = await Promise.all([
+  const [decision, injection, embedding] = await Promise.all([
     providers.decide ? timed(layers, "decision", MODELS.decision, () => providers.decide!(s, signal)) : null,
     providers.detectInjection
       ? timed(layers, "prompt_injection", MODELS.injection, () => providers.detectInjection!(injectionText(s), signal))
-      : null,
-    providers.moderate
-      ? timed(layers, "moderation", MODELS.moderation, () => providers.moderate!(moderationText(s), signal))
       : null,
     providers.embed ? timed(layers, "embedding", MODELS.embedding, () => providers.embed!(embeddingText(s), signal)) : null,
   ]);
   // Embedding vectors are large and not a verdict; keep only their dimension in the audit log.
   for (const l of layers) if (l.layer === "embedding" && Array.isArray(l.result)) l.result = { dimensions: l.result.length };
 
-  const probabilities = fuse({ decision: decision?.probabilities ?? null, injection, moderation });
+  const probabilities = fuse({ decision: decision?.probabilities ?? null, injection });
   // Complete only when the decision model answered: every accepted record must be judged by it, so a
   // missing or failed decision model holds the record. A failed supporting classifier is logged but
   // doesn't hold it, so one flaky provider can't stop all publishing.

@@ -53,31 +53,18 @@ export function recordForScreening(s: Submission) {
   };
 }
 
-export type ModerationScores = Partial<Record<string, number>>;
-
 export type ClassifierSignals = {
   decision: Probabilities | null;
   injection: number | null;
-  moderation: ModerationScores | null;
 };
 
-// The decision model answers every question. Each specialist classifier covers one harm and can only
+// The decision model answers every question. The injection classifier covers one harm and can only
 // raise that estimate, never lower it.
 export function fuse(signals: ClassifierSignals): Probabilities | null {
-  const { decision, injection, moderation } = signals;
-  if (!decision && injection === null && !moderation) return null;
+  const { decision, injection } = signals;
+  if (!decision && injection === null) return null;
   const fused = { ...(decision ?? Object.fromEntries(QUESTION_KEYS.map((q) => [q, 0]))) } as Probabilities;
   if (injection !== null) fused.instructions_to_ai = Math.max(fused.instructions_to_ai, injection);
-  if (moderation) {
-    const abusive = Math.max(
-      moderation["harassment"] ?? 0,
-      moderation["harassment/threatening"] ?? 0,
-      moderation["hate"] ?? 0,
-      moderation["hate/threatening"] ?? 0,
-      moderation["violence"] ?? 0,
-    );
-    fused.harassment_or_hate = Math.max(fused.harassment_or_hate, abusive);
-  }
   return fused;
 }
 

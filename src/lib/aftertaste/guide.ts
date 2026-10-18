@@ -180,7 +180,7 @@ export const PRIVACY = [
   },
   {
     heading: "Who processes it",
-    body: "Vercel hosts the service and Neon stores the database. Submitted claims are screened by decision models through Vercel AI Gateway (TypeSafe AI's Jev, and OpenAI when a decision is rerun), by Llama Prompt Guard on Groq and by OpenAI moderation, and are embedded by OpenAI through Vercel AI Gateway to detect paraphrased copies. IPinfo receives a submitting IP address to look up its network.",
+    body: "Vercel hosts the service and Neon stores the database. Submitted claims are screened by decision models through Vercel AI Gateway (TypeSafe AI's Jev, and OpenAI when a decision is rerun) and by Llama Prompt Guard on Groq, and are embedded by OpenAI through Vercel AI Gateway to detect paraphrased copies. IPinfo receives a submitting IP address to look up its network.",
   },
   {
     heading: "What is public",

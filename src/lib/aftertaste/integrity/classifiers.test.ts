@@ -25,19 +25,13 @@ const decision = (yes: Partial<Probabilities> = {}) => async () => ({ probabilit
 
 describe("rubric fusion", () => {
   it("keeps the decision model's probabilities when no specialist ran", () => {
-    expect(fuse({ decision: probs({ promotional: 0.8 }), injection: null, moderation: null })).toEqual(
-      probs({ promotional: 0.8 }),
-    );
-    expect(fuse({ decision: null, injection: null, moderation: null })).toBeNull();
+    expect(fuse({ decision: probs({ promotional: 0.8 }), injection: null })).toEqual(probs({ promotional: 0.8 }));
+    expect(fuse({ decision: null, injection: null })).toBeNull();
   });
 
-  it("lets specialists raise but never lower their own harm", () => {
-    const fused = fuse({ decision: probs({ instructions_to_ai: 0.6 }), injection: 0.97, moderation: { harassment: 0.95 } })!;
-    expect(fused.instructions_to_ai).toBe(0.97);
-    expect(fused.harassment_or_hate).toBe(0.95);
-    const lowered = fuse({ decision: probs({ instructions_to_ai: 0.6 }), injection: 0.01, moderation: { harassment: 0 } })!;
-    expect(lowered.instructions_to_ai).toBe(0.6);
-    expect(lowered.harassment_or_hate).toBe(0.02);
+  it("lets the injection classifier raise but never lower its harm", () => {
+    expect(fuse({ decision: probs({ instructions_to_ai: 0.6 }), injection: 0.97 })!.instructions_to_ai).toBe(0.97);
+    expect(fuse({ decision: probs({ instructions_to_ai: 0.6 }), injection: 0.01 })!.instructions_to_ai).toBe(0.6);
   });
 
   it("rejects only near-certain harms and holds the merely likely", () => {
@@ -98,14 +92,13 @@ describe("screenContent", () => {
     const providers: Providers = {
       decide: decision(),
       detectInjection: async () => 0.01,
-      moderate: async () => ({ harassment: 0.01 }),
       embed: async () => [0.1, 0.2],
     };
     const result = await screenContent(record, providers);
     expect(result.decision?.outcome).toBe("pass");
     expect(result.complete).toBe(true);
     expect(result.embedding).toEqual([0.1, 0.2]);
-    expect(result.layers.map((l) => l.layer).sort()).toEqual(["decision", "embedding", "moderation", "prompt_injection"]);
+    expect(result.layers.map((l) => l.layer).sort()).toEqual(["decision", "embedding", "prompt_injection"]);
     expect(result.layers.find((l) => l.layer === "embedding")?.result).toEqual({ dimensions: 2 });
   });
 
@@ -119,17 +112,14 @@ describe("screenContent", () => {
       decide: async () => {
         throw new Error("overloaded");
       },
-      moderate: async () => ({}),
+      detectInjection: async () => 0.01,
     });
     expect(result.complete).toBe(false);
     expect(result.layers.filter((l) => (l.result as { error?: string }).error)).toHaveLength(1);
   });
 
   it("is incomplete without a decision model even when the other classifiers answer", async () => {
-    const result = await screenContent(record, {
-      detectInjection: async () => 0.01,
-      moderate: async () => ({ harassment: 0.01 }),
-    });
+    const result = await screenContent(record, { detectInjection: async () => 0.01 });
     expect(result.complete).toBe(false);
   });
 
