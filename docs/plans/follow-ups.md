@@ -33,11 +33,7 @@ What still needs doing. Delete items when they're done; decisions and their reas
      - every question gets a probability;
      - the clean record passes;
      - a borderline record shows the fallback model in the `decision` layer's `model` field.
-   - **Prompt Guard on Groq**, with `GROQ_API_KEY` (in `.env.local`). On 2026-10-18 Groq answered 403: the model is blocked at the organization level, so the user must enable it in the Groq console's organization settings. Groq doesn't document the response:
-     - probe one benign string and one attack string, and log the raw `choices[0].message`;
-     - the parser expects a bare number; fix it if Groq returns a label or JSON;
-     - confirm the injection record rejects through `instructions_to_ai`;
-     - try a non-English text over 1,500 characters to see how Groq handles more than 512 tokens.
+   - **Prompt Guard on Groq**: validated 2026-10-18. It returns a bare number, and the injection record scored 0.999 and was rejected while the others scored 0.001 or less, at 100–200 ms each. Still open: one non-English text over 1,500 characters, to see how Groq handles more than 512 tokens.
    - **OpenAI moderation**, with `OPENAI_API_KEY` from the user: the abusive record should raise `harassment_or_hate`.
    - **Network layer**:
      - `pnpm exec tsx scripts/integrity.ts ranges` should load the Tor, X4BNet, OpenAI-connector and Anthropic lists; the Tor and OpenAI fetches failed once in a sandbox;
