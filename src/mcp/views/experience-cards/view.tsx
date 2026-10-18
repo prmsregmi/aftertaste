@@ -1,8 +1,12 @@
 import { ThemeProvider, useToolContext } from "mcp-use/react";
+import { useState } from "react";
 import { ExperienceCard } from "../../components/experience-card";
+
+const COLLAPSED = 5;
 
 export default function ExperienceCards() {
   const view = useToolContext<"search_experiences">();
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <ThemeProvider>
@@ -16,10 +20,15 @@ export default function ExperienceCards() {
         <>
           {view.toolOutput.disambiguation && <p className="xc-note">{view.toolOutput.disambiguation}</p>}
           <ul className="xc-list">
-            {view.toolOutput.results.map((r) => (
+            {(expanded ? view.toolOutput.results : view.toolOutput.results.slice(0, COLLAPSED)).map((r) => (
               <ExperienceCard key={r.id} r={r} />
             ))}
           </ul>
+          {!expanded && view.toolOutput.results.length > COLLAPSED && (
+            <button type="button" className="xc-more" onClick={() => setExpanded(true)}>
+              Show {view.toolOutput.results.length - COLLAPSED} more
+            </button>
+          )}
         </>
       )}
     </ThemeProvider>

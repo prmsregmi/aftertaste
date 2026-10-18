@@ -9,3 +9,4 @@
 .xc-caveat { opacity: 0.7; font-size: 12.5px; }
 .xc-card p { margin: 6px 0 0; }
 .xc-note { margin: 0 0 8px; font-size: 13px; opacity: 0.8; }
+.xc-more { margin-top: 8px; padding: 6px 10px; font: inherit; font-size: 13px; color: inherit; background: none; border: 1px solid currentColor; border-radius: 6px; opacity: 0.8; cursor: pointer; }
