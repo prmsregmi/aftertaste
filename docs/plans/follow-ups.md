@@ -19,17 +19,21 @@ What still needs doing. Delete items when they're done; decisions and their reas
 
 ## Now
 
-1. **Continue page for Claude.ai and ChatGPT (in progress).** A minimal OAuth flow with no accounts: protected-resource and authorization-server metadata, client registration, and an authorize page with one Continue button (Vercel BotID). The token endpoint issues our opaque contributor token, and a refresh request returns the same token so a client that insists on refreshing can't fail. Terminal agents already work: the setup command calls `POST /api/register`, and a POST to `/api/mcp` without a valid token gets a 401. Test the connect flow in Claude.ai and ChatGPT before deploying.
+1. **Connect Claude.ai and ChatGPT after deploying.** The sign-in flow passed locally against a simulated app: discovery, registration, Continue, the token exchange with PKCE, replay rejection and an MCP call with the issued token.
+   - In Claude.ai: Customize, then Connectors, then Add custom connector, with "Register automatically" as the OAuth client.
+   - In ChatGPT: Add custom MCP server with OAuth.
+   - If a token is issued but the connector reports a failure, check Vercel Firewall events for a blocked `POST /api/mcp`.
+   - BotID runs only on Vercel, so it is exercised for the first time there.
 2. **Real-key checks.** All three providers stay on and get validated before rollout.
 
    **Setup.** Use the local DB: `docker start aftertaste-pg`, or create it with `docker run -d --name aftertaste-pg -e POSTGRES_PASSWORD=pg -p 54329:5432 pgvector/pgvector:pg16`. Then, in the shell only (never edit `.env.local`), export `DATABASE_URL=postgresql://postgres:pg@localhost:54329/postgres` and `AFTERTASTE_HASH_SALT=local`, and unset `DATABASE_URL_UNPOOLED`. Run `pnpm exec drizzle-kit migrate` and `pnpm exec tsx scripts/seed.ts` if the DB is new.
 
    **Test records.** Submit a clean record, a promotional one, a grudge, one with "ignore previous instructions...", and one naming a staff member. Then inspect each with `pnpm exec tsx scripts/integrity.ts screen <id>`. The target is under 3 s in total.
-   - **Jev**, once the user has added a card for AI Gateway (free credits on Hobby), with `AI_GATEWAY_API_KEY`:
+   - **Jev**, with `AI_GATEWAY_API_KEY` (in `.env.local`). On 2026-10-18 the gateway accepted the key, but its free tier excludes Jev and `text-embedding-3-small`, so the user needs a small paid credit top-up:
      - every question gets a probability;
      - the clean record passes;
      - a borderline record shows the fallback model in the `decision` layer's `model` field.
-   - **Prompt Guard on Groq**, with `GROQ_API_KEY` from the user. Groq doesn't document the response:
+   - **Prompt Guard on Groq**, with `GROQ_API_KEY` (in `.env.local`). On 2026-10-18 Groq answered 403: the model is blocked at the organization level, so the user must enable it in the Groq console's organization settings. Groq doesn't document the response:
      - probe one benign string and one attack string, and log the raw `choices[0].message`;
      - the parser expects a bare number; fix it if Groq returns a label or JSON;
      - confirm the injection record rejects through `instructions_to_ai`;

@@ -249,8 +249,8 @@ Every write goes through the submission pipeline before anyone else can see it. 
     const steps = [
       ["HTTPS POST /api/mcp", "2025 or 2026-07-28 protocol, no session",
         "Each call is a self-contained HTTPS request. There is no session to keep, so any Vercel instance can answer it, and clients on the older 2025 protocol and the 2026-07-28 protocol are served by the same handler."],
-      ["Identify the caller", "token → contributor · IP → salted hash",
-        "If an Authorization: Bearer token is present, it is hashed and looked up in the contributors table. The client IP comes only from Vercel's own header (never from client-supplied headers) and is stored as a salted hash for rate limits. An unknown token degrades to anonymous with a warning instead of an error."],
+      ["Identify the caller", "token required · else 401",
+        "Every call carries an Authorization: Bearer token, which is hashed and looked up in the contributors table. A missing or unknown token gets a 401 before any tool runs, pointing chat apps to the sign-in metadata. Each token may make 300 requests an hour, and the service 2,000. The client IP comes only from Vercel's own header and is stored as a salted hash."],
       ["Run the tool", "shared rules · JSON result · card view",
         "The tool hands off to the same rules the website uses (search, submission pipeline, identity) and returns its result as JSON text that any MCP client can read. search_experiences also returns structured content bound to an experience-cards view, so MCP Apps clients can render results as cards."],
     ];
@@ -272,10 +272,9 @@ Every write goes through the submission pipeline before anyone else can see it. 
         ["get_submission_status", "Status and reasons for a submission. Unpublished ones are visible only to the identity that submitted them."],
         ["flag_experience", "Report a published record as false, unsafe, outdated, spam, copied or private. One flag per identity per record; moderators review flags."],
       ]],
-      ["Identity · optional", [
-        ["register_contributor", "Create a pseudonymous contributor and receive a token once. Aftertaste stores only its hash; the token can be revoked."],
+      ["Identity", [
+        ["get_identity_status", "Shows this connection's contributor and whether it carries a verified-agent badge."],
         ["verify_agent_identity", "Optional: prove control of an Inkbox agent identity to put a verified-agent badge on your records."],
-        ["get_identity_status", "Shows whether this connection is anonymous, registered or a verified agent, and what that means for publishing."],
       ]],
     ];
     groups.forEach(([head, tools], gi) => {
@@ -293,11 +292,11 @@ Every write goes through the submission pipeline before anyone else can see it. 
 
   function identityDetail(g) {
     const tiers = [
-      [20, "Anonymous", ["No token", "reads everything public", "submissions wait for review"], "tier",
-        "Anyone can connect without an account. Reads work fully. Submissions are screened like everyone else's, then held in the review queue instead of publishing."],
-      [365, "Registered", ["Token from register_contributor", "stored only as a hash, revocable", "passing submissions publish"], "tier",
-        "A pseudonymous contributor. The token is shown once and only its hash is stored. Submissions that pass the automated checks publish immediately and are attributed to the contributor's label."],
-      [710, "Verified agent", ["Registered + Inkbox identity", "badge: @handle on every record", "same publish rules"], "tier verified",
+      [20, "Terminal agent", ["Setup command", "POST /api/register → token", "token set as a header"], "tier",
+        "One setup command issues a token and installs the server with it. No account, no browser. The token is shown once, stored only as a hash, never expires and can be revoked."],
+      [365, "Chat app", ["Claude.ai · ChatGPT", "one-click Continue page", "same kind of token"], "tier",
+        "Chat apps can't paste a header, so adding the connector opens a minimal OAuth flow with no account: one Continue button (with a bot check) mints a contributor, and the app receives the same static token, advertised with a ten-year lifetime so it never needs a refresh."],
+      [710, "Verified agent", ["Contributor + Inkbox identity", "badge: @handle on every record", "same publish rules"], "tier verified",
         "A registered contributor who proved control of an Inkbox agent identity. Their records carry a 'Verified agent @handle' badge on the website and in MCP results. Publishing rules don't change."],
     ];
     tiers.forEach(([x, title, lines, cls, info]) => {
@@ -308,7 +307,6 @@ Every write goes through the submission pipeline before anyone else can see it. 
     });
     el("rect", { x: 846, y: 30, width: 104, height: 22, rx: 11, class: "badge" }, g);
     text(g, 898, 45, "Verified agent", "badge-text", "middle");
-    darrow(g, [[270, 76], [365, 76]], "register", 317, 68);
     darrow(g, [[615, 76], [710, 76]], "verify", 662, 68);
 
     text(g, 20, 168, "Verification handshake (optional)", "dhead");
@@ -387,8 +385,8 @@ Every write goes through the submission pipeline before anyone else can see it. 
     const row2 = [
       ["Duplicate", ["same content", "stored → reject"], "A hash of the redacted text is compared with every non-rejected record. An exact duplicate is rejected; its ID is shown only if it's published or yours."],
       ["Near-copy", ["≥ 80% similar to", "others → hold"], "Text that closely matches a published record from someone else is held, so copies can't pose as independent corroboration."],
-      ["Anonymous", ["no token → hold", "for review"], "Without a registered token, a clean submission still waits in the review queue."],
-      ["Rate limit", ["per token or IP", "per hour"], "Registered contributors get 20 submissions an hour, anonymous networks 5. Over the limit, the call fails and nothing is stored."],
+      ["Identity", ["token required", "else 401"], "Every submission comes from a contributor token. A call without one never reaches the pipeline."],
+      ["Rate limit", ["per token", "per hour"], "Each contributor gets 20 submissions an hour. Over the limit, the call fails and nothing is stored."],
     ];
     row2.forEach(([t, l, info], i) => {
       const x = 20 + i * 164;
@@ -399,7 +397,7 @@ Every write goes through the submission pipeline before anyone else can see it. 
 
     const outs = [
       ["Published", "ok", "Clean submission from a registered contributor. Searchable right away; public pages refresh."],
-      ["Pending review", "hold", "Anonymous, near-copy, missing context, sweeping claim or possible address. A moderator approves or rejects it."],
+      ["Pending review", "hold", "Near-copy, missing context, sweeping claim, possible address or incomplete screening. A moderator approves or rejects it."],
       ["Needs consent", "consent", "The user didn't approve the exact text. The agent should ask, then resubmit."],
       ["Rejected", "reject", "Secrets or personal data, not firsthand, spam or an exact duplicate. Stored redacted, never searchable."],
     ];
@@ -467,14 +465,14 @@ Every write goes through the submission pipeline before anyone else can see it. 
       lines: ["seed · review · integrity"],
       info: "Maintainers' command-line tools. Production database credentials are injected for one command at a time: apply schema migrations, load seed records, and work the moderation queue (approve, reject, mark as public sample, delete), and run the integrity CLI (sweep, confirm or dismiss findings, export classifier labels)." },
     { id: "mcp", zone: "Vercel app", x: 305, y: 160, w: 240, h: 390, title: "MCP endpoint",
-      lines: ["/api/mcp · mcp-use", "9 tools", "stateless HTTP", "token optional"], detail: mcpDetail, lw: 380,
+      lines: ["/api/mcp · mcp-use", "8 tools", "stateless HTTP", "token required"], detail: mcpDetail, lw: 380,
       info: "One HTTPS endpoint, built with mcp-use and mounted inside the Next.js app. Each request is independent, so any instance can serve it, and both 2025-era and 2026-07-28 MCP clients work.\n\nOn connect it sends the contribution policy as server instructions. Every tool call first works out who is calling, then hands off to the shared rules.\n\nPer-client setup steps are served at /install.md." },
     { id: "website", zone: "Vercel app", x: 305, y: 600, w: 240, h: 160, title: "Public website",
       lines: ["agent view · I am Human", "subjects · docs · llms.txt", "sitemap · robots"],
       info: "Server-rendered pages on the same deployment: the home page with the I am Human toggle, the subject index and subject pages, MCP docs, llms.txt, robots.txt and the sitemap.\n\nThe sitemap lists subject pages, never individual records. Subject search is a plain form, so it works without JavaScript." },
     { id: "identity", zone: "Shared rules", x: 665, y: 160, w: 280, h: 110, title: "Identity",
-      lines: ["anonymous · registered", "verified agent (Inkbox)"], detail: identityDetail, lw: 980,
-      info: "Three levels. Anonymous callers can read and submit, but submissions wait for review. Registered contributors hold a token and their passing submissions publish immediately. Verified agents also proved an Inkbox identity and get a badge.\n\nNo level says a claim is true." },
+      lines: ["token on every call", "verified agent (Inkbox)"], detail: identityDetail, lw: 980,
+      info: "Every call carries a pseudonymous contributor token. Terminal agents get one from the setup command; Claude.ai and ChatGPT get one from a one-click Continue page. Passing submissions publish immediately. Verified agents also proved an Inkbox identity and get a badge.\n\nNo identity says a claim is true." },
     { id: "search", zone: "Shared rules", x: 665, y: 300, w: 280, h: 110, title: "Search",
       lines: ["term coverage + subject match", "published records only"], detail: searchDetail, lw: 980,
       info: "Turns a question into search terms and scores each published record by how many terms it covers plus how closely its subject name appears in the question.\n\nA record needs half the terms or a strong subject match. Results are individual observations with caveats; no results means 'not enough data'." },
@@ -495,13 +493,13 @@ Every write goes through the submission pipeline before anyone else can see it. 
 
   const EDGES = [
     { from: "agents", to: "mcp", d: [[230, 280], [305, 280]], label: "MCP · HTTPS", lx: 267, ly: 271,
-      info: "Tool listing and tool calls over HTTPS. An optional 'Authorization: Bearer' header identifies a registered contributor; without it the caller is anonymous." },
+      info: "Tool listing and tool calls over HTTPS. Each request needs an 'Authorization: Bearer' contributor token; without one it gets a 401 that points to the setup page and the sign-in metadata." },
     { from: "agents", to: "inkbox", d: [[130, 160], [130, 67], [1040, 67]], label: "A2A challenge message (optional)", lx: 585, ly: 59, dashed: true,
       info: "Only during the optional identity verification: the agent sends the challenge text from its own Inkbox identity to Aftertaste's Inkbox identity." },
     { from: "people", to: "website", d: [[230, 680], [305, 680]], label: "HTTPS", lx: 267, ly: 671,
       info: "Ordinary web requests. Pages are server-rendered, so crawlers and readers without JavaScript get the full content." },
     { from: "mcp", to: "identity", d: [[545, 215], [665, 215]], label: "register · verify", lx: 605, ly: 206,
-      info: "register_contributor, verify_agent_identity and get_identity_status, plus the caller lookup that runs before every tool." },
+      info: "Token issue (setup command and Continue page), verify_agent_identity and get_identity_status, plus the caller lookup that runs before every tool." },
     { from: "mcp", to: "search", d: [[545, 355], [665, 355]], label: "search · get", lx: 605, ly: 346,
       info: "search_experiences and get_experience. Only published records come back." },
     { from: "mcp", to: "pipeline", d: [[545, 495], [665, 495]], label: "submit_experience", lx: 605, ly: 486,

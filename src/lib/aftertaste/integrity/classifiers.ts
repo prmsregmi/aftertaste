@@ -89,7 +89,7 @@ async function promptGuard(text: string, signal: AbortSignal): Promise<number> {
         body: JSON.stringify({ model: MODELS.injection, messages: [{ role: "user", content: chunk }] }),
         signal,
       });
-      if (!res.ok) throw new Error(`prompt guard HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`prompt guard HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
       const body = (await res.json()) as { choices: { message: { content: string } }[] };
       const score = Number(body.choices[0]?.message.content);
       if (!Number.isFinite(score)) throw new Error("prompt guard returned no score");

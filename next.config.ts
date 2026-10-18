@@ -1,18 +1,25 @@
+import { withBotId } from "botid/next/config";
 import { withMcpUse } from "mcp-use/next";
 
 // Inline config object: annotating it as NextConfig conflicts with mcp-use's turbopack alias type.
-export default withMcpUse(
-  {
-    cacheComponents: true,
-    partialPrefetching: true,
-    turbopack: {
-      rules: {
-        "*.css": {
-          loaders: ["@tailwindcss/turbopack"],
-          as: "*.css",
+// withMcpUse resolves asynchronously, so BotID wraps the resolved config.
+const config = async () =>
+  withBotId(
+    await withMcpUse(
+      {
+        cacheComponents: true,
+        partialPrefetching: true,
+        turbopack: {
+          rules: {
+            "*.css": {
+              loaders: ["@tailwindcss/turbopack"],
+              as: "*.css",
+            },
+          },
         },
       },
-    },
-  },
-  { entry: "./src/mcp/server.ts", viewsDir: "src/mcp/views", basePath: "/api/mcp" },
-);
+      { entry: "./src/mcp/server.ts", viewsDir: "src/mcp/views", basePath: "/api/mcp" },
+    ),
+  );
+
+export default config;
