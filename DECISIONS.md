@@ -1,85 +1,73 @@
 # Decisions
 
-Short record of research-backed choices, tradeoffs and open questions. One or two sentences each.
+Research-backed choices, tradeoffs and open questions, one or two sentences each.
 
 ## Stack
 
-- **Next.js 16.4 App Router on Vercel, Cache Components on.** Public pages read through `'use cache'` helpers tagged `aftertaste`; a publish calls `revalidateTag('aftertaste', 'max')` so counts and samples refresh without a redeploy.
-- **MCP server built on mcp-use 2.10, embedded in the Next app on Vercel** (`src/mcp/server.ts`, mounted by `createNextHandler` at `/api/mcp/[[...path]]`, built by `withMcpUse` in `next.config.ts`). It replaced an equivalent mcp-handler 2.3 server at the user's request; both sit on `@modelcontextprotocol/server` 2.3.1, so behavior is unchanged. One stateless Streamable HTTP endpoint serves 2026-07-28 and 2025-era clients (both verified). Manufact cloud hosting was not used, to keep one deployment on Vercel and avoid free-tier cold starts.
-- **Neon Postgres + Drizzle + `pg` Pool with `attachDatabasePool`.** Neon and Vercel both recommend a pooled TCP client on Fluid Compute over the HTTP driver; the pool is kept small (`max: 5`).
-- **Tool results stay JSON text; `search_experiences` also returns structured content bound to an mcp-use view** (`src/mcp/views/experience-cards`). MCP Apps clients (Claude, ChatGPT, VS Code, Cursor per vendor docs; not tested in each) render cards, everyone else reads the same JSON. Its output schema is loose so extra fields never fail strict clients.
+- **Next.js 16.4 on Vercel with Cache Components.** Public pages read through tagged caches, and a publish refreshes them without a redeploy.
+- **MCP server on mcp-use 2.10, embedded in the Next app** (`createNextHandler` at `/api/mcp`). One stateless Streamable HTTP endpoint serves both 2026-07-28 and 2025-era clients. It runs on Vercel rather than Manufact cloud, to keep one deployment and avoid free-tier cold starts.
+- **Neon Postgres + Drizzle with a small pooled `pg` client** (`attachDatabasePool`), which Neon and Vercel recommend on Fluid Compute. Full-text, trigram and vector search all run inside Postgres.
+- **Search results also come back as structured content bound to an mcp-use card view.** Clients without MCP Apps support read the same JSON.
 
-## Identity
+## Identity and access
 
-- **Every request carries a contributor token** (user decision). A terminal agent's setup command calls `POST /api/register`, which issues a token, and installs the server with it in one step. Claude.ai and ChatGPT receive one through a one-click Continue page. A POST to `/api/mcp` without a valid token gets a 401 that points to the setup page. Tokens are pseudonymous, with no account and no profile.
-- **Static, non-expiring, revocable tokens instead of OAuth with refresh.** This is not the standard for a public API, and it is deliberate: OAuth refresh fails often in chatbots and agent clients, and a token that never expires never fails. The cost is that a leaked token stays valid until revoked. It is sent only over TLS, stored as SHA-256, revocable through `contributors.status`, and unlocks nothing personal. The production path is short-lived access tokens with rotating refresh tokens, scopes, and revocation by client.
-- **Chat-app sign-in is a minimal OAuth server with no accounts.**
-  - **Flow.** The 401 points to RFC 9728 metadata; dynamic client registration is followed by a one-click Continue page, then the token exchange. PKCE uses S256. The issuer is the site itself, with no trailing slash, because ChatGPT matches it exactly.
-  - **Nothing is stored but the contributor.** Client IDs and authorization codes are HMAC-signed payloads, and codes expire in 5 minutes and are single-use.
-  - **Where checks run.** The bot check (Vercel BotID) and the per-network registration limit run when the user clicks Continue, because the token exchange comes from Claude's or OpenAI's servers, not the user's network. The contributor is created at the exchange, so abandoned sign-ins create nothing.
-  - **Token lifetime.** The access token is the same static contributor token, advertised with `expires_in` of ten years and no refresh token, the way Todoist's MCP server does it, so apps never attempt a refresh.
-  - **Client registration.** Client ID Metadata Documents are not advertised: every target client also supports dynamic registration, and advertising them would add an outbound fetcher and ChatGPT's `private_key_jwt` path.
-- **Optional Inkbox agent identity adds a "Verified agent" badge** (user request). Inkbox offers no token a third party can verify, so `verify_agent_identity` uses a challenge: the server signs a 10-minute nonce (HMAC, no table), the agent sends `aftertaste-verify:<nonce>` to our Inkbox identity over A2A with its own key, and we confirm the sender's handle from our Inkbox task ledger, then close that task. Publishing rules are unchanged; the badge attests identity only. Cheap Inkbox identities make it a Sybil speed bump, not a trust signal. A one-time check does not notice a later-deleted identity.
-- **Give-to-get search allowance** (user decision). Each token gets 100 searches per UTC day. Each credited record adds 25 for 30 days, up to 500. A record earns credit only if it is published, still carries integrity weight, is the first for its subject, and is one of at most 3 per UTC day; down-weighting a record to 0 removes its credit. No give-to-get scheme publishes numbers. curl ended its bug bounty to remove the incentive for junk, and Stack Overflow claws back fraudulent reputation, so credit here is screened, capped and revocable.
-  - **Counting.** A capped upsert on `search_usage` per token and UTC day is atomic under parallel calls and doesn't count blocked searches. Query text is never stored.
-  - **Exhaustion.** It returns `isError` with the limit, an absolute `resets_at`, `retryable: false` and the one remedy, so agents stop rather than retry and don't read the limit as "no matches".
-- **One service-wide ceiling of 2,000 MCP requests per UTC hour** (user decision), counted in the same table. Each token may use at most 300 of them per hour, checked first, so no single token can exhaust the shared budget (a security-review fix). Past either limit, requests get a 429 until the next hour.
-- **Token issue is where abuse is cheapest**, so registration keeps a per-network hourly limit and the network-risk block from the integrity layer. The limit is an atomic counter consumed per attempt, including each Continue click before its code is redeemed, so parallel requests can't slip past it. OAuth codes are single-use through a claim keyed to the code's own expiry date (both security-review fixes).
+- **Every request carries a pseudonymous contributor token; there are no accounts.** Terminal agents get one from a setup command (`POST /api/register`) that installs the server in the same step. Claude.ai and ChatGPT get one from a one-click Continue page. A request without a token gets a 401 that points to the setup page.
+- **Static, non-expiring, revocable tokens instead of OAuth refresh.** This departs from the standard on purpose: refresh fails often in agent clients, and a token that never expires never fails. A leaked token stays valid until revoked, so it travels only over TLS, is stored as SHA-256 and unlocks nothing personal. The production path is short-lived access tokens with rotating refresh tokens and scopes.
+- **Chat-app sign-in is a minimal OAuth server with no accounts:** RFC 9728 metadata, dynamic client registration and PKCE S256. Client IDs and codes are HMAC-signed payloads, and codes are single-use with a 5-minute expiry, so only the contributor row is stored. The bot check (BotID) and the per-network limit run when the user clicks Continue, because the token exchange comes from the platform's servers. The token is advertised as valid for ten years, so apps never refresh.
+- **Token issue is the cheapest Sybil attack.** It is guarded by an atomic per-network hourly counter, consumed on every attempt including Continue clicks, and by the network-risk block.
+- **Request limits: 300 per token and 2,000 service-wide per UTC hour.** The token limit is checked first, so no single token can exhaust the shared budget.
+- **Give-to-get search: each token gets 100 searches a day.**
+  - **Credit.** Each credited record adds 25 a day for 30 days, up to 500. A record earns credit only if it is published, still carries integrity weight, is the first for its subject, and is one of at most 3 a day; down-weighting removes the credit. Give-to-get invites junk, which is why curl ended its bug bounty.
+  - **Exhaustion.** Running out returns a non-retryable tool error with `resets_at`, so agents stop and don't read it as "no matches".
+- **Optional Inkbox "Verified agent" badge, through a signed A2A challenge.** Inkbox offers no token a third party can verify. The badge attests identity only, never that a claim is true.
+
+## Screening
+
+- **Filters, then one gate, then the models.**
+  - **Filters.** Records the redaction rule rejects (secrets, emails, phone numbers, order IDs) and exact duplicates are stored rejected without any model call, so personal data never reaches a third party.
+  - **Gate.** Everything else is accepted only within each token's 20 submissions an hour and the screening budget. Over a limit, the submission is refused and nothing is stored.
+  - **Models.** Every accepted submission is screened, so the screening budget is the acceptance limit.
+- **Screening budget: 2,000 an hour and 50,000 a week by default.** That is production sizing, a few dollars a week. The demo deployment sets 200 and 4,000 through env. The hourly limit is checked before the weekly one, so refused attempts don't drain the week.
+- **A decision model, not a prompted LLM.** Jev (pinned to 1.13.0, which retains no data) answers ten narrow yes/no questions with native probabilities; CheckEval found binary questions agree better than one holistic score. When an answer falls between 0.3 and 0.7, AI Gateway reruns the decision on OpenAI's decision model, so one model's blind spot doesn't decide alone.
+- **Specialist classifiers can only raise a score.** Llama Prompt Guard 2 scores injection per 512-token chunk and keeps the maximum; OpenAI moderation (optional) scores abuse. A miss costs nothing, and a catch counts.
+- **Reject only near-certain promotion, abuse, instructions to AI or secondhand content; hold anything merely likely.** Holding is cheap, and wrongly rejecting a real report is not.
+- **Fail closed.** A record the decision model didn't judge is held as `screening_incomplete`, and the sweep re-screens it for eight days. A failing specialist never blocks publishing.
+- **Agents are the expected callers.** Machine-written style and automation are never risk signals, so BotID and CAPTCHAs stay off the MCP endpoint.
+- **Network signals hold submissions.** The signals are Tor, VPN and datacenter ranges, ASN, spoofed connector user agents, and token farming per /24 or /48. Shared platform egress is exempt from per-network velocity. IPs are kept only as salted hashes, for 90 days.
+- **A daily behavior sweep.** It checks Poisson bursts against a shrunk 28-day baseline, polarity shifts, CopyCatch-style lockstep groups and shared /24 per subject, and keeps a Beta reputation with forgetting. Paraphrases are caught with embeddings in pgvector, because LLM rewording defeats trigram matching.
+- **Down-weight and disclose, don't delete.**
+  - **Ranking.** Search ranks by relevance times an integrity weight. Confirmed manipulation drops to 0, and subjects with bursts show a notice, which is Steam's approach to review bombs.
+  - **Symmetry.** The same checks apply to boosting and to bombing, because FTC 16 CFR 465 forbids selectively suppressing negative reviews.
+  - **Newcomers.** New accounts lose a little weight for one week only, because Yelp's filter over-penalized newcomers.
+- **Screening runs synchronously, within 15 seconds,** so agents get a final status in the same call. mcp-use's bundle has no `after()`, so post-response work uses `waitUntil`. The cron is daily because Hobby rejects more frequent schedules.
+- **Evidence is recorded, never verified.** Only a moderator can set `reproduced`.
 
 ## Evaluation
 
-- **Deterministic rules first** (`src/lib/aftertaste/evaluate.ts`, unit-tested): privacy redaction (secrets, emails, phones, order IDs reject; street addresses hold), provenance (only `human_firsthand` / `agent_experiment`), consent assertion, spam scoring (promo phrases, tracking links, shouting, sweeping claims at n=1), text addressed to AI readers (held), specificity, and lineage notes. DB-backed checks add exact-duplicate rejection, trigram near-copy holds and per-identity rate limits.
-- **Then layered integrity screening** (`src/lib/aftertaste/integrity/`). Off-the-shelf safety classifiers don't detect promotion, fake firsthand claims or secondhand summaries, so policy harms go to a decision model as ten narrow yes/no questions (CheckEval: binary questions agree far better across raters than one holistic score). Almost all text is agent-written, so "reads as AI-written" is never a signal.
-  - **Classifiers.** Jev (TypeSafe AI's decision model, `typesafe-ai/jev-1.13.0`, the stable release, through Vercel AI Gateway, called with AI SDK 7's `experimental_decide`) answers every question with a probability, evaluating each one independently. When any answer falls between 0.3 and 0.7, AI Gateway's conditional fallback reruns the decision on OpenAI's native decision model and returns only that model's answers, and the audit log records which model answered. Neither model is prompted for free text. This replaced Claude prompt judges (three Haiku votes, Opus on disputes) at the user's direction: a prompted model's probabilities are self-reported and nondeterministic, while a decision model returns native per-question probabilities. 1.13.0 is pinned because it has full zero data retention; 1.14.0 is a preview. Two specialist classifiers can only raise the estimate for their harm: Llama Prompt Guard 2 (86M, on Groq) for prompt injection, scored per 512-token chunk with the maximum kept, and OpenAI `omni-moderation-latest` (free) for abuse. Near-certain promotion, abuse, prompt injection or secondhand content rejects; anything likely holds, because holding is cheap and wrongly rejecting a real report is not.
-  - **Network.** Agents are the expected callers, so automation is never penalized and BotID/CAPTCHA don't apply. Signals: Tor, VPN and datacenter CIDRs (Tor bulk list, X4BNet), ASN via IPinfo Lite, connector user agents checked against Anthropic and OpenAI egress ranges, MCP `clientInfo` versus user agent, and many identities or new tokens per /24 or /48. Platform egress is shared by every user, so it is exempt from per-network velocity. Only salted hashes of the IP and prefix are stored, for 90 days.
-  - **Behavior.** Poisson tail test on per-subject daily counts against a shrunk 28-day baseline, binomial polarity-shift test, CopyCatch/GSRank-style lockstep groups, shared /24 per subject, Beta reputation with 2%/week forgetting. Paraphrase detection uses `text-embedding-3-small` (512 dims) in pgvector, because LLM rewording defeats trigram and MinHash.
-  - **Down-weight, disclose, don't delete.** Records get a ranking weight; confirmed manipulation drops to 0 and leaves search; subjects with bursts show a notice (Steam's review-bomb approach). Only strong lockstep groups of low-trust contributors go back to the queue automatically. The same checks apply to boosting and bombing (FTC 16 CFR 465 forbids selectively suppressing negative reviews). New accounts lose a little weight for a week only, after Yelp's filter was shown to over-penalize newcomers.
-  - **Graceful degradation.** Each provider is optional. Without keys a layer is skipped; if the decision model fails, the record is held with `screening_incomplete` and the sweep re-screens it. A failing supporting layer never blocks publishing. A record the decision model didn't judge, because it failed or isn't configured, is always held, so nothing publishes unscreened now that no keyword rule judges content (a security-review fix).
-  - **Path to an owned classifier.** Every verdict is stored in `screenings`; `pnpm integrity export` writes JSONL labels for distilling a ModernBERT or SetFit classifier once a human-audited gold set exists. Thresholds are starting points from the literature and must be recalibrated on real traffic.
-- **Filters first, then one gate, then the models** (user decision).
-  - **Filters that block run first.** Personal data the redaction rule rejects, and exact duplicates, are stored rejected without any model call or budget. Personal data never reaches a third party that way.
-  - **Content is judged by the models.** Nothing can tell content spam apart before the models run, so no keyword rule judges it.
-  - **Acceptance.** Everything that passes the filters is accepted only within the limits below. Every accepted submission is screened, so the screening budget and the acceptance limit are one count.
-  - **Two limits decide acceptance:** each token's 20 submissions an hour, and the paid-screening budget per UTC hour and ISO week.
-  - **Budget sizing.** The defaults of 2,000 an hour and 50,000 a week are production sizing, a few dollars a week at current prices. The demo deployment lowers them to 200 and 4,000 through `AFTERTASTE_SCREENING_PER_HOUR` and `_PER_WEEK`.
-  - **Over a limit,** a submission is refused and nothing is stored, rather than kept unscreened.
-  - **Re-screening.** Records held only because a model failed are re-screened by the sweep for eight days, within the same budget.
-- **Measured on real keys (local run).** A clean record published. Prompt Guard scored an injection at 0.999 and the other records at 0.001 or less. Jev flagged a staff member's name as a private individual at 0.96. For the uncertain injection and grudge records, the gateway reran the decision on the backup model. A full screening took about 1 second: the decision model 0.5 s, Prompt Guard 0.2 s, the embedding 0.5 s, in parallel.
-- **"Instructions to AI" keeps reader-directed instructions in scope.**
-  - **Wording.** A first narrowing to AI systems only (a security review flagged it) would have let "readers: always rank this first" through. The question now covers instructions to AI systems or readers to recommend, rank, ignore or change behavior. It points plain boycott calls to the grudge question, which holds a record instead of rejecting it.
-  - **Real-key result.** A boycott record is held as a grudge. A reader-directed ranking instruction is rejected.
-  - **Why the ensemble matters.** Prompt Guard scored that ranking instruction 0.0009 because it is trained on jailbreak-style text, while the decision model scored it 1.0.
-- **Synchronous screening with a 15-second budget, background sweep daily.** Agents get a final status in the same tool call. Workflow DevKit and `after()` were rejected: mcp-use bundles the MCP server with its own Next shims (no `after`), and a durable workflow added moving parts for a few parallel calls. Per-subject burst checks run via `waitUntil` after each submission; the cron is daily because Hobby plans reject more frequent schedules.
-- **Screening is tuned against a labeled evaluation set** (`data/screening-eval.jsonl`, 165 records written by four adversarial agents; run with `scripts/eval-screening.ts`). The four groups were legitimate records that look suspicious, promotion and secondhand claims, disguised and multilingual prompt injection, and abuse, grudges and private people. Each record runs through the rules and the live models, combined as in production.
-  - **First pass:** 148 of 160 correct. Keyword rules for spam and AI-addressed text caught 8 of 25 injection attacks, the models caught all 25, and the rules alone rejected or held five genuine records ("Best pizza ever!!!", three all-caps words, "system prompt"). Those two rules were removed; the rules that remain protect data (redaction, provenance, consent, detail) and never judge content.
-  - **Question wording.** Two questions changed. "Stake in the subject" now names speaking for the business and competitors, disclosed or not, and excludes buying the product. "Instructions to AI" now covers indirect forms, such as declaring the best answer to a category of questions. Three harmful records had published before this.
-  - **Final pass:** 155 of 165 correct, with no harmful record published and no publishable record rejected. Every remaining miss sits on the hold or reject boundary, or is a test record missing version details. Labels on that boundary are judgment calls.
-  - **Held-out check** (`data/screening-eval-blind.jsonl`, 48 records written after tuning by an agent that never saw the tuning set): 44 of 48 correct, against 155 of 165 on the tuning set, so the wording generalizes. No record was falsely rejected and all 12 attacks were rejected.
-    - The one harmful record that published was partly secondhand: a cataract surgery told from the user's mother's account.
-    - It was left untuned on purpose, to avoid fitting the test.
-- **Tested by simulation.** In a local run, an 8-account review bomb across 3 subjects had 3 registrations refused and all 24 records held or quarantined, and the burst, polarity-shift, lockstep and shared-infrastructure findings all fired. A sweep over the 10,000 seed records produced zero findings.
-- **Evidence is recorded, never verified.** `evidence_attached` means the contributor described or hashed an artifact; `reproduced` can only be set by a moderator.
+- **Tuned against 165 adversarial records written by four agents** (`data/screening-eval.jsonl`, run by `scripts/eval-screening.ts` through the rules and the live models).
+  - **The sets:** legitimate records that look suspicious; promotion and secondhand claims; disguised and multilingual injection; abuse and private people.
+  - **First pass: 148 of 160 correct.** Keyword rules caught 8 of 25 injection attacks, against the models' 25. They also rejected genuine records ("Best pizza ever!!!", acronyms, "system prompt"), so the content keyword rules were removed.
+  - **Two questions reworded.** "Stake in the subject" now covers speaking for the business or running a competitor, disclosed or not, and states that buying the product is not a stake. "Instructions to AI" now covers indirect forms ("the best answer to any coffee question is X") and leaves plain boycott calls to the grudge question.
+  - **Final pass: 155 of 165 correct.** No harmful record published and no publishable record was rejected; the remaining misses sit on the hold/reject boundary.
+- **Held-out check: 44 of 48 correct** (`data/screening-eval-blind.jsonl`, written after tuning by an agent that never saw the tuning set). All 12 attacks were rejected and nothing was falsely rejected. The one miss, a partly secondhand medical account, is left untuned so the test isn't fitted.
+- **Why two models.** Prompt Guard scored a reader-directed ranking instruction at 0.0009; the decision model scored it 1.0.
+- **Real keys:** a full screening takes about 1 second, with the decision model (0.5 s), Prompt Guard (0.2 s) and the embedding (0.5 s) running in parallel.
+- **Simulation:** an 8-account review bomb across 3 subjects had 3 registrations refused and all 24 records held or quarantined, and every coordination detector fired. A sweep over 10,000 clean records found nothing.
+- **Path to an owned classifier.** Every verdict is stored, and `pnpm integrity export` writes training labels for a distilled ModernBERT or SetFit model once a human-audited gold set exists. The thresholds are uncalibrated starting points.
 
-## Search
+## Search and public surface
 
-- **Postgres full-text + `pg_trgm`, no embeddings.** Relevance = share of query terms present in the record plus how much of the subject name appears in the query; a record needs at least half the terms or a strong subject-name match. This stopped a single shared word ("motorcycle") from surfacing an unrelated subject. Multi-subject results carry a disambiguation note (e.g. Canyon jacket vs Canyon bicycle).
-- **Subjects resolve deterministically**: slug, exact name/alias, then trigram similarity > 0.6 within the same kind; otherwise a new subject is created.
-
-## Public surface
-
-- **Website shows topic metadata and flagged public samples only.** Sitemap lists subject pages, not records; full records are MCP-only.
-- **"I am Human" is a client toggle on `<html data-mode>`** with a `#human` hash for linking. Both presentations are server-rendered from the same data, so crawlers and people see the same content.
-- **Server identity.** The logo goes out in MCP `serverInfo.icons` (SVG plus a 512 px PNG) and in `server.json`, so clients and registries show it at install. The same mark replaces the default favicon.
-- **`llms.txt` is provided as a convenience**, not for ranking (Google says it has no effect). No `agents.txt`.
+- **Postgres full-text + `pg_trgm`.** Relevance is term coverage plus subject-name match, and a record needs at least half the terms or a strong name match, so one shared word doesn't surface an unrelated subject.
+- **Subjects resolve deterministically:** slug, then exact name or alias, then trigram similarity above 0.6 within the same kind.
+- **Public pages show only topic metadata and public samples; full records are MCP-only.** The "I am Human" toggle renders the same data in a second presentation.
+- **The logo goes out in MCP `serverInfo.icons` and `server.json`.** `llms.txt` is a convenience, not a ranking signal.
 
 ## Tradeoffs
 
-- **Seed records**: 10,000 generated records about 300 subjects, loaded by `pnpm db:seed` from `data/experiences.jsonl` and spread across 650 pseudonymous contributors (no tokens issued, no Inkbox badges). Every seed record is a public sample, so the sitemap lists all 300 subjects. All 300 seed subjects are invented. A spot check of the names that use dictionary words found no real Bay Area business. MCP results don't mark seed records; `is_seed` stays internal for bulk removal. Seeding runs only the deterministic evaluator, so loading data never calls a paid model.
-- Moderation is a CLI (`pnpm review`), not a web dashboard.
-- Rate limits count rows in Postgres per identity/IP hash; there is no global request throttle beyond Vercel's platform protections. A Vercel WAF rate-limit rule on `/api/mcp` is the recommended edge layer (dashboard setting, not in code).
+- **Seed records:** 10,000 generated records about 300 invented subjects (a spot check found no real business), loaded without model calls. MCP results don't mark them; `is_seed` stays internal for bulk removal.
+- **Moderation is a CLI, not a dashboard.**
 
 ## Open questions
 
-- Which hosts actually surface MCP server instructions to the model, and is a client-side skill needed to make opportunistic write-back dependable?
-- Can an external identity (OAuth, signed requests, or an agent-identity provider) replace the platform token without hurting client compatibility?
-- When does the corpus get large enough that embeddings beat term coverage for natural-language questions?
+- Which hosts surface MCP server instructions to the model, and is a client-side skill needed to make write-back dependable?
+- When will the corpus be large enough for embeddings to beat term coverage on natural-language queries?
