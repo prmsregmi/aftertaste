@@ -15,21 +15,21 @@ const run = (event: object) =>
 
 describe("Claude Code hook", () => {
   it("keeps the telling error line without paths, positions or IDs", () => {
-    expect(errorSignature("Exit code 9\nnode: .env: not found")).toBe("node: .env: not found");
+    expect(errorSignature("Exit code 9\nnode: .env: not found")).toBe("node .env not found");
     expect(
       errorSignature(
         "Exit code 1\n> build\n\x1b[31mError: Cannot find module /Users/a/app/lib/db.js\x1b[0m\n    at Module._load (node:internal/modules/cjs/loader:1000:12)",
       ),
-    ).toBe("Error: Cannot find module");
-    expect(errorSignature("request 3f9a2c1d8e7b6a50 failed: 401 Unauthorized")).toBe("request failed: 401 Unauthorized");
+    ).toBe("Error Cannot find module");
+    expect(errorSignature("request 3f9a2c1d8e7b6a50 failed: 401 Unauthorized")).toBe("request failed 401 Unauthorized");
   });
 
   it("never sends secrets or identifiers from the error line", () => {
     const leaked = errorSignature(
-      "Error: connect failed for postgres://admin:hunter2@db.internal.example.com:5432/app (api_key=sk_live_51HxQ2abcDEF123456 user ops@example.com host 10.0.0.12, token ghp_aB3dE6fG9hJ2kL5mN8pQ1rS4tU7vW0xY)",
+      "Error: connect ECONNREFUSED for postgres://admin:hunter2@db.internal.example.com:5432/app (api_key=sk_live_51HxQ2abcDEF123456 DB_PASSWORD=s3cret MY_TOKEN: abc user ops@example.com host 10.0.0.12 billing.internal fe80::1, token ghp_aB3dE6fG9hJ2kL5mN8pQ1rS4tU7vW0xY AKIAIOSFODNN7EXAMPLE)",
     );
-    for (const secret of ["hunter2", "admin", "internal", "sk_live", "ops@", "10.0.0.12", "ghp_"]) expect(leaked).not.toContain(secret);
-    expect(leaked).toContain("Error: connect failed for");
+    for (const secret of ["hunter2", "admin", "internal", "sk_live", "s3cret", "ops@", "10.0.0.12", "fe80", "ghp_", "AKIA", "abc"]) expect(leaked).not.toContain(secret);
+    expect(leaked).toContain("Error connect ECONNREFUSED for");
   });
 
   it("names the tool behind a command, not the runner or script", () => {

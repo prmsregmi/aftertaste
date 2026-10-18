@@ -28,17 +28,14 @@ export function workParts(command) {
 }
 const ERROR_LINE = /error|exception|failed|cannot|can't|not found|denied|invalid|unexpected|refused|timed? ?out|unauthorized|forbidden|\bERR_|\bE[A-Z]{3,}\b/i;
 
-// Secrets and identifiers an error line can carry; none of them may leave the machine.
-const SENSITIVE = [
-  /\b[a-z][\w+.-]*:\/\/\S+/gi, // URLs, including credentials in connection strings
-  /[\w.%+-]+@[\w-]+(?:\.[\w-]+)+/g, // emails
-  /\b(?:api[_-]?key|secret|token|password|passwd|pwd|auth\w*)\s*[:=]\s*\S+/gi,
-  /\bbearer\s+\S+/gi,
-  /\b[\w-]+(?:\.[\w-]+){2,}\b/g, // host names and IP addresses
-  /\b(?=[\w-]*\d)(?=[\w-]*[a-z])[\w-]{20,}\b/gi, // long token-like strings
-];
+// Only these tokens of an error line are ever sent: plain words, error codes (ECONNREFUSED,
+// ERR_MODULE_NOT_FOUND), short numbers (401), short version-like tokens (v17, utf8) and dotfiles
+// (.env). Everything else, including paths, URLs, hosts, IDs, keys and assignments, stays local.
+// Words naming a secret or identifier, alone or as part of a name like MY_TOKEN; the value after one is dropped.
+const SECRET_NAME = /^(?:[\w-]*[_-])?(?:token|secret|password|passwd|pwd|key|apikey|auth|credentials?|cookie|session|user|username|role|account|host|hostname|org|tenant|project|database|db|bucket)(?:[_-][\w-]*)?$/i;
+const SAFE_TOKEN = /^(?:[A-Za-z][A-Za-z'-]{0,23}|[A-Z][A-Z_]{2,40}|\d{1,4}|[A-Za-z]{1,10}\d{1,4}|\.[a-z][a-z.-]{0,20})$/;
 
-// The most telling error line, without secrets, paths, IDs and other run-specific noise.
+// The most telling error line, reduced to tokens that can't carry secrets or identifiers.
 export function errorSignature(text) {
   const lines = String(text)
     .replace(/\x1b\[[0-9;]*m/g, "")
@@ -46,13 +43,14 @@ export function errorSignature(text) {
     .map((l) => l.trim())
     .filter((l) => l && !/^exit code \d+$/i.test(l));
   const line = lines.find((l) => ERROR_LINE.test(l)) ?? lines[0] ?? "";
-  return SENSITIVE.reduce((l, re) => l.replace(re, " "), line)
-    .replace(/(?:[A-Za-z]:)?(?:\.{0,2}\/|~\/)[^\s'"`:)]+/g, " ")
-    .replace(/:\d+(?::\d+)?\b/g, " ")
-    .replace(/\b0x[0-9a-f]+\b|\b[0-9a-f]{8,}\b|\b[0-9a-f-]{36}\b/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 160);
+  const kept = [];
+  let afterSecretName = false;
+  for (const raw of line.split(/\s+/)) {
+    const t = raw.replace(/^[("'`[{<]+|[)"'`\]}>,;:.!?]+$/g, "");
+    if (!afterSecretName && SAFE_TOKEN.test(t)) kept.push(t);
+    afterSecretName = SECRET_NAME.test(t);
+  }
+  return kept.join(" ").slice(0, 160);
 }
 
 // The CLI the command was about, e.g. "supabase" for "npx supabase db push"; null for plain runners.
