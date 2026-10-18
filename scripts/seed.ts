@@ -1,4 +1,4 @@
-// Bulk-loads data/experiences.jsonl (synthetic records about fictional subjects) as published public
+// Bulk-loads data/experiences.jsonl (generated seed records) as published public
 // records from 650 pseudonymous contributors, unevenly distributed. Deterministic apart from IDs.
 //   pnpm db:seed [--reset]     --reset first deletes every flag, review event, screening, anomaly, request signal, trust score, record, contributor and subject.
 // Operator scripts use the direct (unpooled) connection when one exists. It also wins over a local
@@ -123,10 +123,10 @@ async function main() {
     const row = experienceRow(s, hash, subject.id, {
       status: "published",
       reasonCodes: ["synthetic_dataset", ...reasonCodes],
-      reasonText: "Synthetic demo dataset.",
+      reasonText: "Seed record.",
       contributorId: contributor.id,
       submitterKey: contributor.id,
-      isDemoFixture: true,
+      isSeed: true,
       isPublicSample: true,
     });
     return { ...row, createdAt, updatedAt: createdAt };

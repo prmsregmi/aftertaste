@@ -10,7 +10,7 @@ export interface PublicRecord {
   sourceType: string;
   evidenceTier: string;
   observedOn: string | null;
-  isDemoFixture: boolean;
+  isSeed: boolean;
   aspects: string[];
   preferences: Record<string, string>;
   caveat: string;

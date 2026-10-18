@@ -126,7 +126,7 @@ export const experiences = pgTable(
     submitterKey: text("submitter_key").notNull(),
     idempotencyKey: text("idempotency_key"),
     contentHash: text("content_hash").notNull(),
-    isDemoFixture: boolean("is_demo_fixture").notNull().default(false),
+    isSeed: boolean("is_seed").notNull().default(false),
     // Only public samples render in full on the website; everything else is MCP-only.
     isPublicSample: boolean("is_public_sample").notNull().default(false),
     searchText: text("search_text").notNull(),

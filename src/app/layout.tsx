@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Bagel_Fat_One, JetBrains_Mono, Newsreader, Public_Sans } from "next/font/google";
-import { SiteFooter, SiteHeader } from "@/components/site-chrome";
+import { SiteHeader } from "@/components/site-chrome";
 import { SITE_NAME, siteUrl } from "@/lib/aftertaste/guide";
 import "./globals.css";
 
@@ -27,7 +27,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col human:bg-[radial-gradient(rgb(20_33_26/0.09)_1.5px,transparent_1.5px)] human:bg-size-[22px_22px]">
         <SiteHeader />
         <div className="flex-1">{children}</div>
-        <SiteFooter />
       </body>
     </html>
   );

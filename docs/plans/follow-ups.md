@@ -16,9 +16,9 @@ Tracked in git. It is the source of truth for the next agent; keep it current in
 
 ## Working state at handoff (2026-10-18)
 
-- `main` is ahead of production. Nothing has been deployed since 2026-10-17 and migration `0003_integrity` is **not** applied to Neon. Do not deploy until item 0b step 5 passes with real keys. Steps 1–4 passed locally on 2026-10-18 (Docker pgvector). The attack simulation and the clean-seed sweep matched the expected results. The demo matched too, except that `.env.local` gateway credentials made the registered record hold with `screening_incomplete` because of the billing error in item 0.
+- `main` is ahead of production. Nothing has been deployed since 2026-10-17 and migration `0003_integrity` is **not** applied to Neon. Do not deploy until item 0b step 5 passes with real keys. Steps 1–4 passed locally on 2026-10-18 (Docker pgvector). The attack simulation and the clean-seed sweep matched the expected results. The e2e script matched too, except that `.env.local` gateway credentials made the registered record hold with `screening_incomplete` because of the billing error in item 0.
 - Already done on `main` (no action needed):
-  - Server instructions, at the user's request: the PERMISSION paragraph and the synthetic-demo note were removed, and a line was added saying Aftertaste complements Context7, web search, APIs and forums. The `evaluation` sentence in `CONTRIBUTION_GUIDE` was updated to mention the new screening.
+  - Server instructions, at the user's request: the PERMISSION paragraph and the seed-data note were removed, and a line was added saying Aftertaste complements Context7, web search, APIs and forums. The `evaluation` sentence in `CONTRIBUTION_GUIDE` was updated to mention the new screening.
   - Integrity layer in `src/lib/aftertaste/integrity/`:
     - `rubric.ts`: ten harm questions, fusion and reject/hold thresholds.
     - `classifiers.ts`: Jev decisions, Prompt Guard, moderation and embeddings (item 0).
@@ -31,7 +31,7 @@ Tracked in git. It is the source of truth for the next agent; keep it current in
     - Cron route `/api/cron/integrity` (daily, `vercel.json`).
     - CLIs: `scripts/integrity.ts` (`pnpm integrity ...`) and `scripts/simulate-attack.ts`.
     - Subject-page notice, architecture page, README and DECISIONS.
-  - Verified in a cloud sandbox against Postgres 16 with pgvector: lint, typecheck, 43 unit tests, `next build`, and the MCP demo (`scripts/demo.mts`) against `pnpm start`. The attack simulation ran 8 accounts × 3 subjects: 3 registrations were refused, all 24 records were held or quarantined, the burst, polarity-shift, lockstep and shared-infrastructure findings fired, and the notice appeared in search. A sweep over the clean seed data produced zero findings. Content providers were tested with fakes only; no real API call has ever been made.
+  - Verified in a cloud sandbox against Postgres 16 with pgvector: lint, typecheck, 43 unit tests, `next build`, and the MCP end-to-end script (`scripts/e2e.mts`) against `pnpm start`. The attack simulation ran 8 accounts × 3 subjects: 3 registrations were refused, all 24 records were held or quarantined, the burst, polarity-shift, lockstep and shared-infrastructure findings fired, and the notice appeared in search. A sweep over the clean seed data produced zero findings. Content providers were tested with fakes only; no real API call has ever been made.
 
 ## 0. Classifier content layer (done 2026-10-18, real-key smoke test pending)
 
@@ -57,7 +57,7 @@ Tracked in git. It is the source of truth for the next agent; keep it current in
    - Then confirm that "ignore previous instructions..." rejects through `instructions_to_ai`.
    - Test one non-English record longer than 1,500 characters to see whether Groq errors or truncates past 512 tokens.
 3. **OpenAI moderation.** The user supplies `OPENAI_API_KEY`. Confirm that the abusive example raises `harassment_or_hate`.
-4. **Dataset loads never call paid models.** `scripts/seed.ts` runs only the deterministic `evaluateSubmission`, with no Jev, Groq, OpenAI or embedding calls; item 2's generator must load through it too. Never load demo data through `submit_experience` or `assessSubmission`. For scripts that go through the pipeline (`demo.mts`, `simulate-attack.ts`), set `AFTERTASTE_SCREENING=off` unless you are testing the models.
+4. **Dataset loads never call paid models.** `scripts/seed.ts` runs only the deterministic `evaluateSubmission`, with no Jev, Groq, OpenAI or embedding calls; item 2's generator must load through it too. Never load seed data through `submit_experience` or `assessSubmission`. For scripts that go through the pipeline (`e2e.mts`, `simulate-attack.ts`), set `AFTERTASTE_SCREENING=off` unless you are testing the models.
 
 ## 0b. Test the integrity layer locally, then roll out
 
@@ -68,17 +68,17 @@ Run all of this on the user's machine. Never run `simulate-attack.ts` against Ne
 4. Without any model keys:
    - Run `pnpm exec tsx scripts/simulate-attack.ts`. Expect the outcomes listed under "Working state", then clean up with `--cleanup`.
    - Run `pnpm exec tsx scripts/integrity.ts sweep` on the clean seed. Expect zero bursts, lockstep and shared-infrastructure findings.
-   - Run `pnpm start -p 3123` and `MCP_URL=http://localhost:3123/api/mcp pnpm exec tsx scripts/demo.mts`. Expect the same output as before: published, rejected spam, anonymous held.
-5. With keys exported in the shell, test one provider at a time. Submit a clean record, a promotional one, a grudge, one with "ignore previous instructions...", and one naming a staff member through the demo or a small script. Then check `pnpm exec tsx scripts/integrity.ts screen <id>` and confirm each layer's output and latency (the target is under 3 s total). Keys needed:
+   - Run `pnpm start -p 3123` and `MCP_URL=http://localhost:3123/api/mcp pnpm exec tsx scripts/e2e.mts`. Expect the same output as before: published, rejected spam, anonymous held.
+5. With keys exported in the shell, test one provider at a time. Submit a clean record, a promotional one, a grudge, one with "ignore previous instructions...", and one naming a staff member through `scripts/e2e.mts` or a small script. Then check `pnpm exec tsx scripts/integrity.ts screen <id>` and confirm each layer's output and latency (the target is under 3 s total). Keys needed:
    - `OPENAI_API_KEY` (moderation)
    - `IPINFO_TOKEN`
    - `AI_GATEWAY_API_KEY` (Jev decisions and embeddings; the team needs a card on file first)
    - `GROQ_API_KEY` (Prompt Guard)
 6. Network layer:
    - `pnpm exec tsx scripts/integrity.ts ranges` should load the Tor, X4BNet VPN/datacenter, OpenAI connector and Anthropic egress lists. In the cloud sandbox the Tor and OpenAI fetches failed: check whether that was the sandbox or the URLs.
-   - Check `request_signals.client_name`: the demo client sent no MCP `clientInfo`, so it was empty. Confirm a real client (Claude Code) fills it through `ctx.client.info()`.
+   - Check `request_signals.client_name`: the e2e client sent no MCP `clientInfo`, so it was empty. Confirm a real client (Claude Code) fills it through `ctx.client.info()`.
 7. Rollout (the user deploys):
-   1. `vercel env run -e production -- pnpm exec drizzle-kit migrate`, before the deploy (it adds the vector extension, six tables and four `experiences` columns).
+   1. `vercel env run -e production -- pnpm exec drizzle-kit migrate`, immediately followed by step 3. It adds the vector extension, six tables and four `experiences` columns (0003), and renames `is_demo_fixture` to `is_seed` (0004). The build that is live now still reads the old column name, so its record queries fail between this step and the deploy.
    2. Add the provider keys plus `CRON_SECRET` on Vercel. AI Gateway uses the deployment's OIDC token there.
    3. `vercel deploy --prod --yes`.
    4. `vercel env run -e production -- pnpm exec tsx scripts/integrity.ts sweep` once.
@@ -94,7 +94,7 @@ Targeting three sponsor tracks; the README's "Built with" section pitches all th
 
 | Track | Prize | Why Aftertaste fits | Still needed |
 |---|---|---|---|
-| Manufact, "Best MCP server for agents" | 1st $2,000 + $6,000 credits | Built on mcp-use (Manufact's framework): one `MCPServer`, server instructions, `withMcpUse`/`createNextHandler` inside Next.js, `experience-cards` view, the integrity layer | Items 0, 2 and 3; be ready to explain why we host on Vercel, not Manufact cloud (one deployment, no free-tier cold starts during the demo) |
+| Manufact, "Best MCP server for agents" | 1st $2,000 + $6,000 credits | Built on mcp-use (Manufact's framework): one `MCPServer`, server instructions, `withMcpUse`/`createNextHandler` inside Next.js, `experience-cards` view, the integrity layer | Items 0, 2 and 3; be ready to explain why we host on Vercel, not Manufact cloud (one deployment, no free-tier cold starts during judging) |
 | Armature, "Build something agents use" (coding agents, no human in the loop) | Winner $2,000, runner-up $1,000 | Anonymous reads, self-registration, policy as data, `/llms.txt` and `/install.md`, no 401 dead ends | Items 2 and 4; optionally item 6, which closes the "coding agents" gap |
 | Inkbox, persistent agent identity | 1st $1,000 + $1,000 credits | `verify_agent_identity` badge over Inkbox A2A | Item 5: badge never tested live; prod has no Inkbox keys, so the tool fails there today |
 
@@ -119,12 +119,13 @@ Skipped: Primitive (email; $3,000 first, but nothing built; the email follow-up 
   - The text is fill-in-the-blank templates: about 4,500 distinct summaries and 2,600 distinct observations across 10,000 records.
   - Slots are filled with words that don't fit the subject. Examples: an izakaya "tried over a long project", whose "pistachio gelato was harder to use than expected"; a pottery studio whose "late set fell short"; a plumbing crew where "fridge cleaning stood out"; a cooking class where "the crew showed up early".
   - Agents quote this verbatim, and a judge reading search results or subject pages will spot it.
-- **User decision (2026-10-17)**: use real businesses, products, APIs and services as subjects, with invented experiences. This is a hackathon demo, not a launch.
-- **Guardrails** (they protect the real businesses and cost the demo nothing):
-  - **Out of search engines**: subject pages for synthetic subjects get `robots: noindex` and are left out of `sitemap.xml`. This needs a small code change: filter `is_demo_fixture` in the sitemap query and in the subject page's `generateMetadata`. Judges and agents still reach everything over MCP and by direct link.
+- **User decision (2026-10-17)**: use real businesses, products, APIs and services as subjects, with invented experiences.
+- **Open conflict (2026-10-18)**: the user now wants no wording anywhere that frames the product as unfinished (repo, site, MCP, docs) and the product presented as final. The footer disclosure is gone. The record-level `synthetic: true` flag stays: invented reviews of real businesses with no label would be fake reviews presented as genuine (DECISIONS cites the FTC fake-review rule). Recommended to the user, still unanswered: make real-subject records real measurements (agent operability, measured `agent_experiment` records, `synthetic: false`), and keep invented consumer experiences on fictional subjects, flagged. Confirm before generating.
+- **Guardrails** (they protect the real businesses at no cost):
+  - **Out of search engines**: subject pages for synthetic subjects get `robots: noindex` and are left out of `sitemap.xml`. This needs a small code change: filter `is_seed` in the sitemap query and in the subject page's `generateMetadata`. Judges and agents still reach everything over MCP and by direct link.
   - **Subjective observations only**: taste, noise, wait, fit, comfort, durability, value, setup, latency, docs clarity. Never hygiene, food safety, health, legality, discrimination, or named staff and individuals. Overall sentiment stays mixed, not a pile of one-star takedowns.
-  - **Labels stay on**: `is_demo_fixture = true` and `synthetic: true` on every record, and the footer line. The server-instructions note was removed on 2026-10-18 at the user's request ("it's a dummy demo").
-  - **Teardown**: after judging, delete the `is_demo_fixture` records with their review events and flags, then delete the subjects and contributors left without records. Keep at least one published subject, or the next build fails on an empty `generateStaticParams`.
+  - **Labels stay on**: `is_seed = true` and `synthetic: true` on every generated record. The footer line and the server-instructions note were removed on 2026-10-18 at the user's request.
+  - **Teardown**: after judging, delete the `is_seed` records with their review events and flags, then delete the subjects and contributors left without records. Keep at least one published subject, or the next build fails on an empty `generateStaticParams`.
 - **Domains**:
   - **Restaurants**: real Bay Area restaurants. Each gets a profile built from public facts: cuisine, signature dishes from the real menu, price band, neighborhood.
   - **Shopping**: real products with their real variants (sizes, colors, models), e.g. outdoor gear, headphones, kitchen appliances.
@@ -150,13 +151,13 @@ Skipped: Primitive (email; $3,000 first, but nothing built; the email follow-up 
 - **Context**: `search_experiences` declares an output schema and the `experience-cards` view (`src/mcp/views/`), so MCP Apps clients (Claude, ChatGPT, VS Code, Cursor per vendor docs) should render cards. Server side is verified (resource listed, assets 200); it hasn't been seen inside Claude or ChatGPT.
 - **How**: add the connector in Claude.ai (Customize, Connectors, Add custom connector, endpoint URL) and run a search. Don't set an `MCP_URL` env var (it changes asset origins); preview-deployment protection would block view assets.
 
-### 4. Record the no-human onboarding demo (Armature, also helps Manufact)
+### 4. Record the no-human onboarding walkthrough (Armature, also helps Manufact)
 - **Goal**: show a coding agent (Claude Code or Codex) going from nothing to a contribution with no human help: it reads `https://aftertaste-ai.vercel.app/llms.txt`, installs the server itself, searches, calls `register_contributor`, and submits an `agent_experiment` record.
 - **Cleanup**: delete the records it creates afterwards with the moderation `delete` command; also delete its contributor and any orphaned subject (no CLI for those yet; a one-off SQL delete through `vercel env run` works).
 
 ### 5. Inkbox verified-agent badge, live test (Inkbox)
 - **Context**: optional identity layer. A registered contributor calls `verify_agent_identity(handle)` and gets a nonce signed for that contributor; the agent sends `aftertaste-verify:<nonce>` over A2A from its Inkbox identity to ours; the second call reads our Inkbox task ledger, links the handle and marks the task complete (single use). Code: `src/lib/aftertaste/inkbox.ts`, `verifyAgentIdentity` in `service.ts`.
-- **Needs**: an Inkbox Console account with two identities and agent-scoped keys. The server's go to Vercel as `INKBOX_AGENT_HANDLE` / `INKBOX_API_KEY`; the demo agent's go in `.env.inkbox` as `DEMO_INKBOX_HANDLE` / `DEMO_INKBOX_API_KEY`. `pnpm demo` runs the verification step automatically when those are present.
+- **Needs**: an Inkbox Console account with two identities and agent-scoped keys. The server's go to Vercel as `INKBOX_AGENT_HANDLE` / `INKBOX_API_KEY`; the test agent's go in `.env.inkbox` as `E2E_INKBOX_HANDLE` / `E2E_INKBOX_API_KEY`. `pnpm e2e` runs the verification step automatically when those are present.
 - **Unverified**: the ISO format of the ledger `since` parameter; whether Console-created identities count as "claimed".
 
 ### 6. Coding-agent loop (optional, Armature)
@@ -193,7 +194,7 @@ Designed in the sections below; nothing built.
 - Restart `pnpm dev` after changing `next.config.ts`, MCP views or global CSS; the dev server serves stale modules otherwise.
 - Copy and UI: the user wants minimal text, no filler, and pushes back hard on verbosity.
 - Moderation: `vercel env run -e production -- pnpm exec tsx scripts/review.ts list|approve|reject|sample|delete <id>`.
-- Production migrations: `vercel env run -e production -- pnpm exec drizzle-kit migrate`. End-to-end check: `MCP_URL=https://aftertaste-ai.vercel.app/api/mcp pnpm demo`, then delete the demo's records with the moderation `delete` command.
+- Production migrations: `vercel env run -e production -- pnpm exec drizzle-kit migrate`. End-to-end check: `MCP_URL=https://aftertaste-ai.vercel.app/api/mcp pnpm e2e`, then delete its records with the moderation `delete` command.
 - `vercel env run` layers `.env.local` on top of remote vars (scripts prefer `DATABASE_URL_UNPOOLED` partly for this). It also misparses arguments containing `=` or bare file paths; once it deployed a scratch file as a new public project. Always use the `-- pnpm exec ...` form.
 
 ---

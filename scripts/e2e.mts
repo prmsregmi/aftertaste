@@ -1,6 +1,6 @@
 // End-to-end write/read loop against a live endpoint, using two independent MCP client connections.
-//   MCP_URL=https://<host>/api/mcp pnpm demo
-// With DEMO_INKBOX_HANDLE and DEMO_INKBOX_API_KEY (from .env.inkbox), agent A also proves its Inkbox identity.
+//   MCP_URL=https://<host>/api/mcp pnpm e2e
+// With E2E_INKBOX_HANDLE and E2E_INKBOX_API_KEY (from .env.inkbox), agent A also proves its Inkbox identity.
 import { Inkbox } from "@inkbox/sdk";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 
@@ -45,7 +45,7 @@ const jacket = {
   observed_on: new Date().toISOString().slice(0, 7),
   limitations: "One person's fit impression in one size; body shape and layering underneath differ between riders.",
   permission: { basis: "explicit_user_approval", user_reviewed_final_text: true },
-  idempotency_key: `demo-jacket-${run}`,
+  idempotency_key: `e2e-jacket-${run}`,
 };
 
 const spam = {
@@ -77,11 +77,11 @@ async function main() {
   const a = await connect("agent-a", token);
   console.log(`  identity: ${(await call(a, "get_identity_status")).identity}`);
 
-  const handle = process.env.DEMO_INKBOX_HANDLE;
-  if (handle && process.env.DEMO_INKBOX_API_KEY) {
+  const handle = process.env.E2E_INKBOX_HANDLE;
+  if (handle && process.env.E2E_INKBOX_API_KEY) {
     // Optional: send the challenge from agent A's own Inkbox identity over A2A, then confirm.
     const challenge = await call(a, "verify_agent_identity", { inkbox_handle: handle });
-    const me = await new Inkbox({ apiKey: process.env.DEMO_INKBOX_API_KEY }).getIdentity(handle);
+    const me = await new Inkbox({ apiKey: process.env.E2E_INKBOX_API_KEY }).getIdentity(handle);
     const a2a = await me.a2aClient();
     await a2a.send(await a2a.fetchCard(challenge.send_to), { text: challenge.message });
     const verified = await call(a, "verify_agent_identity", { inkbox_handle: handle, nonce: challenge.nonce });
@@ -98,7 +98,7 @@ async function main() {
   const anonResult = await call(anon, "submit_experience", {
     subject: { name: "El Cerrito DMV motorcycle skills test", kind: "process", location: "El Cerrito, CA" },
     source_type: "human_firsthand",
-    summary: `Rider reports cones on the skills course were freshly repainted and easy to see (demo run ${run}).`,
+    summary: `Rider reports cones on the skills course were freshly repainted and easy to see (run ${run}).`,
     observations: [{ aspect: "course markings", observation: "Cone positions were freshly painted and clearly visible.", polarity: "positive" }],
     observed_on: new Date().toISOString().slice(0, 7),
     limitations: "One test on one morning; markings may fade or change.",

@@ -13,7 +13,7 @@
     "db:migrate": "dotenv -e .env.local -- drizzle-kit migrate",
     "db:seed": "dotenv -e .env.local -- tsx scripts/seed.ts",
     "review": "dotenv -e .env.local -- tsx scripts/review.ts",
-    "demo": "dotenv -e .env.inkbox -- tsx scripts/demo.mts",
+    "e2e": "dotenv -e .env.inkbox -- tsx scripts/e2e.mts",
     "integrity": "dotenv -e .env.local -- tsx scripts/integrity.ts"
   },
   "dependencies": {

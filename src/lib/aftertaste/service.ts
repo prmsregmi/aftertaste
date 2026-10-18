@@ -153,7 +153,7 @@ type InsertOptions = {
   reasonText: string | null;
   actor: Actor | null;
   requestId: string;
-  isDemoFixture?: boolean;
+  isSeed?: boolean;
   isPublicSample?: boolean;
 };
 
@@ -187,7 +187,7 @@ export function experienceRow(s: Submission, contentHash: string, subjectId: str
     submitterKey: opts.submitterKey,
     idempotencyKey: s.idempotency_key,
     contentHash,
-    isDemoFixture: opts.isDemoFixture ?? false,
+    isSeed: opts.isSeed ?? false,
     isPublicSample: opts.isPublicSample ?? false,
     searchText: searchTextOf(s),
     integrityWeight: opts.integrity?.weight ?? 1,
@@ -393,7 +393,7 @@ type SearchRow = {
   preferences: Record<string, string>;
   limitations: string;
   derived_from: string[];
-  is_demo_fixture: boolean;
+  is_seed: boolean;
   flag_count: number;
   contributor_id: string | null;
   contributor_label: string | null;
@@ -452,7 +452,7 @@ export async function searchExperiences(query: string, opts: { kind?: string; li
         and (${opts.kind ?? null}::text is null or s.kind::text = ${opts.kind ?? null})
     )
     select id, summary, variant, source_type, evidence_tier, observed_on, observations, context, preferences, limitations,
-           derived_from, is_demo_fixture, flag_count, contributor_id, contributor_label, inkbox_handle, created_at,
+           derived_from, is_seed, flag_count, contributor_id, contributor_label, inkbox_handle, created_at,
            subject_id, subject_name, subject_slug, subject_kind, integrity_weight,
            (coverage + name_match) * (0.5 + 0.5 * integrity_weight) as score
     from scored e
@@ -471,7 +471,7 @@ export async function searchExperiences(query: string, opts: { kind?: string; li
     observed_on: r.observed_on,
     source_type: r.source_type,
     evidence_tier: r.evidence_tier,
-    synthetic: r.is_demo_fixture,
+    synthetic: r.is_seed,
     contributor: attributionOf({
       contributorId: r.contributor_id,
       label: r.contributor_label,
@@ -557,7 +557,7 @@ export async function getExperience(id: string) {
     evidence_tier: e.evidenceTier,
     derived_from: e.derivedFrom,
     permission_basis: e.permission.basis,
-    synthetic: e.isDemoFixture,
+    synthetic: e.isSeed,
     contributor: attributionOf({ ...e, label: c?.label, inkboxHandle: c?.inkboxHandle }),
     flag_count: e.flagCount,
     integrity: integrityOf(e.integrityWeight),
@@ -749,9 +749,9 @@ export async function flagExperience(id: string, reason: string, note: string | 
 // ---- Public website queries: approved samples and topic metadata only. ----
 
 export async function getPublicStats() {
-  const { rows } = await getDb().execute<{ published: number; fixtures: number; subjects: number; held: number }>(sql`
+  const { rows } = await getDb().execute<{ published: number; seeded: number; subjects: number; held: number }>(sql`
     select count(*) filter (where status = 'published')::int as published,
-           count(*) filter (where status = 'published' and is_demo_fixture)::int as fixtures,
+           count(*) filter (where status = 'published' and is_seed)::int as seeded,
            count(distinct subject_id) filter (where status = 'published')::int as subjects,
            count(*) filter (where status in ('pending_review', 'rejected', 'needs_consent'))::int as held
     from experiences`);
@@ -774,7 +774,7 @@ function toPublicRecord(
     sourceType: e.sourceType,
     evidenceTier: e.evidenceTier,
     observedOn: e.observedOn,
-    isDemoFixture: e.isDemoFixture,
+    isSeed: e.isSeed,
     aspects: e.observations.map((o) => o.aspect),
     preferences: e.preferences,
     caveat: caveatFor(e),

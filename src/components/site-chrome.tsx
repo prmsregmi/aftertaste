@@ -22,11 +22,3 @@ export function SiteHeader() {
     </header>
   );
 }
-
-export function SiteFooter() {
-  return (
-    <footer className="mt-24 px-6 pb-8 sm:px-12 lg:px-16 human:hidden">
-      <p className="text-sm text-muted-foreground">Demo dataset: synthetic records about fictional places and products.</p>
-    </footer>
-  );
-}

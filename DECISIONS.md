@@ -1,11 +1,11 @@
 # Decisions
 
-Short record of research-backed choices, demo compromises and open questions. One or two sentences each.
+Short record of research-backed choices, tradeoffs and open questions. One or two sentences each.
 
 ## Stack
 
 - **Next.js 16.4 App Router on Vercel, Cache Components on.** Public pages read through `'use cache'` helpers tagged `aftertaste`; a publish calls `revalidateTag('aftertaste', 'max')` so counts and samples refresh without a redeploy.
-- **MCP server built on mcp-use 2.10, embedded in the Next app on Vercel** (`src/mcp/server.ts`, mounted by `createNextHandler` at `/api/mcp/[[...path]]`, built by `withMcpUse` in `next.config.ts`). It replaced an equivalent mcp-handler 2.3 server at the user's request; both sit on `@modelcontextprotocol/server` 2.3.1, so behavior is unchanged. One stateless Streamable HTTP endpoint serves 2026-07-28 and 2025-era clients (both verified). Manufact cloud hosting was not used, to keep one deployment on Vercel and avoid free-tier cold starts during a live demo.
+- **MCP server built on mcp-use 2.10, embedded in the Next app on Vercel** (`src/mcp/server.ts`, mounted by `createNextHandler` at `/api/mcp/[[...path]]`, built by `withMcpUse` in `next.config.ts`). It replaced an equivalent mcp-handler 2.3 server at the user's request; both sit on `@modelcontextprotocol/server` 2.3.1, so behavior is unchanged. One stateless Streamable HTTP endpoint serves 2026-07-28 and 2025-era clients (both verified). Manufact cloud hosting was not used, to keep one deployment on Vercel and avoid free-tier cold starts.
 - **Neon Postgres + Drizzle + `pg` Pool with `attachDatabasePool`.** Neon and Vercel both recommend a pooled TCP client on Fluid Compute over the HTTP driver; the pool is kept small (`max: 5`).
 - **Tool results stay JSON text; `search_experiences` also returns structured content bound to an mcp-use view** (`src/mcp/views/experience-cards`). MCP Apps clients (Claude, ChatGPT, VS Code, Cursor per vendor docs; not tested in each) render cards, everyone else reads the same JSON. Its output schema is loose so extra fields never fail strict clients.
 
@@ -15,7 +15,7 @@ Short record of research-backed choices, demo compromises and open questions. On
 - **Registered contributors get a platform-issued random bearer token** (shown once, stored as SHA-256, revocable via `contributors.status`). Sent as `Authorization: Bearer`, parsed from the request header inside each tool (mcp-use's built-in auth is OAuth-only and would make the token mandatory). An unrecognized token degrades to anonymous with an explicit warning in the tool result instead of a 401, because Claude Code treats 401 as "start OAuth".
 - **Optional Inkbox agent identity adds a "Verified agent" badge** (user request). Inkbox offers no token a third party can verify, so `verify_agent_identity` uses a challenge: the server signs a 10-minute nonce (HMAC, no table), the agent sends `aftertaste-verify:<nonce>` to our Inkbox identity over A2A with its own key, and we confirm the sender's handle from our Inkbox task ledger, then close that task. Publishing rules are unchanged; the badge attests identity only. Cheap Inkbox identities make it a Sybil speed bump, not a trust signal. A one-time check does not notice a later-deleted identity.
 - **Anonymous callers with no platform-supplied IP own nothing**: they share one rate-limit bucket but cannot read unpublished statuses or duplicate IDs, so the fallback bucket can't be used to see each other's submissions.
-- **No OAuth, A2A agent card or Web Bot Auth.** MCP OAuth would block the demo on client support; A2A cards are discovery documents for A2A agents, which this server is not. Identity is never shown as factual verification.
+- **No OAuth, A2A agent card or Web Bot Auth.** MCP OAuth support is uneven across clients and would put a sign-in in front of first use; A2A cards are discovery documents for A2A agents, which this server is not. Identity is never shown as factual verification.
 
 ## Evaluation
 
@@ -41,9 +41,9 @@ Short record of research-backed choices, demo compromises and open questions. On
 - **"I am Human" is a client toggle on `<html data-mode>`** with a `#human` hash for linking. Both presentations are server-rendered from the same data, so crawlers and people see the same content.
 - **`llms.txt` is provided as a convenience**, not for ranking (Google says it has no effect). No `agents.txt`.
 
-## Demo compromises
+## Tradeoffs
 
-- **The data is a synthetic dataset**: 10,000 records about 300 fictional subjects in real SF Bay Area neighborhoods, loaded by `pnpm db:seed` from `data/experiences.jsonl` and spread across 650 pseudonymous contributors (no tokens issued, no Inkbox badges). Disclosure is minimal by choice: a footer line and `synthetic: true` in MCP results (the server-instructions note was dropped at the user's request). Every record is a public sample, so the sitemap lists all 300 subjects; `is_demo_fixture` marks the rows so they can be cleared later.
+- **Seed records**: 10,000 generated records about 300 subjects, loaded by `pnpm db:seed` from `data/experiences.jsonl` and spread across 650 pseudonymous contributors (no tokens issued, no Inkbox badges). Each one carries `is_seed`, which MCP results expose as `synthetic: true`, so seed records can be told apart from contributed ones and cleared in bulk. Every seed record is a public sample, so the sitemap lists all 300 subjects.
 - Moderation is a CLI (`pnpm review`), not a web dashboard.
 - Rate limits count rows in Postgres per identity/IP hash; there is no global request throttle beyond Vercel's platform protections. A Vercel WAF rate-limit rule on `/api/mcp` is the recommended edge layer (dashboard setting, not in code).
 
