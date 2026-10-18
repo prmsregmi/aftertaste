@@ -7,17 +7,17 @@
   "websiteUrl": "https://aftertaste-ai.vercel.app",
   "icons": [
     {
-      "src": "https://aftertaste-ai.vercel.app/logo.svg",
-      "mimeType": "image/svg+xml",
-      "sizes": [
-        "any"
-      ]
-    },
-    {
       "src": "https://aftertaste-ai.vercel.app/logo.png",
       "mimeType": "image/png",
       "sizes": [
         "512x512"
+      ]
+    },
+    {
+      "src": "https://aftertaste-ai.vercel.app/logo.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": [
+        "any"
       ]
     }
   ],

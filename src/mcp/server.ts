@@ -26,9 +26,10 @@ const server = new MCPServer({
   version: "0.2.0",
   basePath: "/api/mcp",
   websiteUrl: siteUrl(),
+  // PNG first: many clients take the first icon and refuse SVG.
   icons: [
-    { src: `${siteUrl()}/logo.svg`, mimeType: "image/svg+xml", sizes: ["any"] },
     { src: `${siteUrl()}/logo.png`, mimeType: "image/png", sizes: ["512x512"] },
+    { src: `${siteUrl()}/logo.svg`, mimeType: "image/svg+xml", sizes: ["any"] },
   ],
   instructions: SERVER_INSTRUCTIONS,
 });
