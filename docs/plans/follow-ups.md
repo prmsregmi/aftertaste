@@ -190,7 +190,8 @@ Risks: flooding (accept fixes only after observed success), poisoned fixes (neve
 - Restart `pnpm dev` after changing `next.config.ts`, MCP views or global CSS.
 - Copy and UI must be minimal; the user pushes back hard on verbosity.
 - **Moderation**: `vercel env run -e production -- pnpm exec tsx scripts/review.ts list|approve|reject|sample|delete <id>`.
-- **End-to-end check**: `MCP_URL=<host>/api/mcp pnpm e2e`. Locally, add `AFTERTASTE_SCREENING=off` unless you're testing models. Delete its records afterwards.
+- **End-to-end check**: `MCP_URL=<host>/api/mcp pnpm e2e`. The spam step needs the screening models, because keyword rules no longer reject promotion. Delete its records afterwards.
+- **Screening evaluation**: `DATABASE_URL=<local> pnpm exec dotenv -e .env.local -- tsx scripts/eval-screening.ts data/screening-eval.jsonl`. It calls the paid models (about a cent per run) and never touches the database. Rerun after any change to `rubric.ts`.
 - **Reloading the dataset**: `vercel env run -e production -- pnpm exec tsx scripts/seed.ts --reset` wipes every table, including real contributors.
 - **`vercel env run`** layers `.env.local` over remote vars and misparses arguments containing `=` or bare paths. Always use the `-- pnpm exec ...` form.
 - A leftover `next-server` process can keep port 3123 after `pkill -f "next start"`; kill it by PID before restarting.

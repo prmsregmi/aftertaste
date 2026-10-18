@@ -51,13 +51,6 @@ const PRIVACY_PATTERNS: Pattern[] = [
   },
 ];
 
-const PROMO_PHRASES =
-  /\b(?:buy (?:now|here|at|it)|discount code|promo code|use (?:my )?code|limited time|click (?:here|this|the link)|five stars|5 stars|best \w+ ever|order (?:now|today)|affiliate|don'?t miss|act now)\b/gi;
-const TRACKING_LINK =
-  /https?:\/\/\S*(?:[?&](?:ref|aff|affiliate|tag|coupon|promo|discount|utm_[a-z]+)=|amzn\.to|bit\.ly|tinyurl\.com)\S*/gi;
-// Text addressed to the AI systems that will read the record: the prompt-injection shape of review spam.
-const AI_DIRECTIVE =
-  /\b(?:ignore|disregard|forget)\b[^.]{0,30}\b(?:previous|prior|above|earlier|all)\b[^.]{0,20}\b(?:instructions?|prompts?|rules)\b|\b(?:system prompt|developer message)\b|\b(?:ai|assistants?|agents?|llms?|language models?|chatbots?)\b[^.]{0,40}\b(?:must|should|always)\b[^.]{0,40}\b(?:recommend|rank|mention|prefer|promote)\b/i;
 const UNIVERSAL_CLAIM =
   /\b(?:every|all|always|never|nobody|everyone)\b[^.!?]{0,60}\b(?:defective|broken|scam|perfect|best|worst|fake|amazing|terrible)\b/i;
 
@@ -138,30 +131,15 @@ export function evaluateSubmission(input: Submission): Evaluation {
     );
   }
 
-  // Spam and manipulation.
+  // Promotion and text aimed at AI readers are judged by the screening models, which every accepted record
+  // goes through; keyword rules caught a third of injection attacks and rejected genuine enthusiasm.
   const text = allText(input);
-  let spam = 0;
-  spam += 2 * (text.match(PROMO_PHRASES)?.length ?? 0);
-  spam += 3 * (text.match(TRACKING_LINK)?.length ?? 0);
-  if ((text.match(/!/g)?.length ?? 0) >= 3) spam += 1;
-  if ((text.match(/\b[A-Z]{4,}\b/g)?.length ?? 0) >= 3) spam += 1;
   if (UNIVERSAL_CLAIM.test(text) && (input.sample_size ?? 1) <= 1) {
-    spam += 2;
     flag(
       "overgeneralized_claim",
       "pending_review",
       "A single experience cannot support a claim about every unit or every user; scope it to what was observed.",
     );
-  }
-  if (AI_DIRECTIVE.test(text)) {
-    flag(
-      "instructions_to_ai",
-      "pending_review",
-      "Records may only describe experiences; text addressed to AI readers is held for review.",
-    );
-  }
-  if (spam >= 3) {
-    flag("promotional_spam", "rejected", "Submission reads as promotion or manipulation rather than an observation.");
   }
 
   // Specificity: an experience needs conditions that let others judge whether it applies to them.
