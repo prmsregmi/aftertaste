@@ -46,7 +46,7 @@ Short record of research-backed choices, tradeoffs and open questions. One or tw
 
 ## Tradeoffs
 
-- **Seed records**: 10,000 generated records about 300 subjects, loaded by `pnpm db:seed` from `data/experiences.jsonl` and spread across 650 pseudonymous contributors (no tokens issued, no Inkbox badges). Each one carries `is_seed`, which MCP results expose as `synthetic: true`, so seed records can be told apart from contributed ones and cleared in bulk. Every seed record is a public sample, so the sitemap lists all 300 subjects. No product copy calls the service a demo, but generated records keep `synthetic: true`: unlabeled invented reviews would be fake reviews presented as genuine (FTC 16 CFR 465). Seeding runs only the deterministic evaluator, so loading data never calls a paid model.
+- **Seed records**: 10,000 generated records about 300 subjects, loaded by `pnpm db:seed` from `data/experiences.jsonl` and spread across 650 pseudonymous contributors (no tokens issued, no Inkbox badges). Every seed record is a public sample, so the sitemap lists all 300 subjects. All 300 seed subjects are invented. A spot check of the names that use dictionary words found no real Bay Area business. MCP results don't mark seed records; `is_seed` stays internal for bulk removal. Seeding runs only the deterministic evaluator, so loading data never calls a paid model.
 - Moderation is a CLI (`pnpm review`), not a web dashboard.
 - Rate limits count rows in Postgres per identity/IP hash; there is no global request throttle beyond Vercel's platform protections. A Vercel WAF rate-limit rule on `/api/mcp` is the recommended edge layer (dashboard setting, not in code).
 

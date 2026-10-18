@@ -122,7 +122,7 @@ async function main() {
     if (createdAt < contributor.createdAt) contributor.createdAt = createdAt;
     const row = experienceRow(s, hash, subject.id, {
       status: "published",
-      reasonCodes: ["synthetic_dataset", ...reasonCodes],
+      reasonCodes: ["seed_record", ...reasonCodes],
       reasonText: "Seed record.",
       contributorId: contributor.id,
       submitterKey: contributor.id,

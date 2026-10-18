@@ -9,7 +9,6 @@ const searchResult = z.looseObject({
   source_type: z.string(),
   evidence_tier: z.string(),
   observed_on: z.string().nullable(),
-  synthetic: z.boolean(),
   reviewer_preferences: z.record(z.string(), z.string()),
   contributor: z.looseObject({ label: z.string().nullable(), verified_agent: z.string().nullable() }),
   caveat: z.string(),

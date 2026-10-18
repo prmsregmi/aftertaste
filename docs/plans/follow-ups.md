@@ -81,12 +81,8 @@ After editing, run the checks, commit and deploy. Clients pick up changes on the
 
 ### 2. Realistic dataset (decided in principle; one conflict open)
 - **Problem**: `data/experiences.jsonl` has invented subject names and fill-in-the-blank text whose slots don't fit (an izakaya "tried over a long project", a plumbing crew where "fridge cleaning stood out"). Agents quote it verbatim.
-- **Conflict to resolve with the user first.**
-  - On 2026-10-17 the user chose real businesses with invented experiences.
-  - On 2026-10-18 they asked that nothing present the product as unfinished.
-  - Generated records keep `synthetic: true` (see DECISIONS), because unlabeled invented reviews of real businesses would be fake reviews presented as genuine.
-  - The recommendation, still unanswered: make real-subject records real measurements (agent operability, measured `agent_experiment` records, `synthetic: false`), and keep invented consumer experiences on fictional subjects.
-- **Guardrails if real subjects get invented records**:
+- **Labels**: MCP results no longer mark generated records (user decision, 2026-10-18), so generated records stay on invented subjects. Real subjects get only real measurements (for example agent operability or measured `agent_experiment` records).
+- **Guardrails for any record about a real subject**:
   - `noindex` and leave them out of the sitemap (filter `is_seed`);
   - subjective aspects only (no hygiene, safety, legality or named people);
   - mixed sentiment.

@@ -394,7 +394,6 @@ type SearchRow = {
   preferences: Record<string, string>;
   limitations: string;
   derived_from: string[];
-  is_seed: boolean;
   flag_count: number;
   contributor_id: string | null;
   contributor_label: string | null;
@@ -475,7 +474,7 @@ export async function searchExperiences(query: string, opts: { kind?: string; li
         and (${opts.kind ?? null}::text is null or s.kind::text = ${opts.kind ?? null})
     )
     select id, summary, variant, source_type, evidence_tier, observed_on, observations, context, preferences, limitations,
-           derived_from, is_seed, flag_count, contributor_id, contributor_label, inkbox_handle, created_at,
+           derived_from, flag_count, contributor_id, contributor_label, inkbox_handle, created_at,
            subject_id, subject_name, subject_slug, subject_kind, integrity_weight,
            (coverage + name_match) * (0.5 + 0.5 * integrity_weight) as score
     from scored e
@@ -494,7 +493,6 @@ export async function searchExperiences(query: string, opts: { kind?: string; li
     observed_on: r.observed_on,
     source_type: r.source_type,
     evidence_tier: r.evidence_tier,
-    synthetic: r.is_seed,
     contributor: attributionOf({
       contributorId: r.contributor_id,
       label: r.contributor_label,
@@ -580,7 +578,6 @@ export async function getExperience(id: string) {
     evidence_tier: e.evidenceTier,
     derived_from: e.derivedFrom,
     permission_basis: e.permission.basis,
-    synthetic: e.isSeed,
     contributor: attributionOf({ ...e, label: c?.label, inkboxHandle: c?.inkboxHandle }),
     flag_count: e.flagCount,
     integrity: integrityOf(e.integrityWeight),
