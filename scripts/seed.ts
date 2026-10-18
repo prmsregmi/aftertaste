@@ -1,6 +1,6 @@
 // Bulk-loads data/experiences.jsonl (synthetic records about fictional subjects) as published public
 // records from 650 pseudonymous contributors, unevenly distributed. Deterministic apart from IDs.
-//   pnpm db:seed [--reset]     --reset first deletes every flag, review event, record, contributor and subject.
+//   pnpm db:seed [--reset]     --reset first deletes every flag, review event, screening, anomaly, request signal, trust score, record, contributor and subject.
 // Operator scripts use the direct (unpooled) connection when one exists. It also wins over a local
 // DATABASE_URL that `vercel env run` layers on top of the remote environment from .env.local.
 process.env.DATABASE_URL = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
@@ -8,7 +8,17 @@ import { randomBytes } from "crypto";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { getDb } from "@/db";
-import { contributors, experiences, flags, reviewEvents, subjects } from "@/db/schema";
+import {
+  anomalies,
+  contributors,
+  contributorTrust,
+  experiences,
+  flags,
+  requestSignals,
+  reviewEvents,
+  screenings,
+  subjects,
+} from "@/db/schema";
 import { submissionSchema, type Submission } from "@/lib/aftertaste/contracts";
 import { evaluateSubmission } from "@/lib/aftertaste/evaluate";
 import { contentHashOf, experienceRow, newId, sha256, subjectSlug } from "@/lib/aftertaste/service";
@@ -124,7 +134,18 @@ async function main() {
 
   await getDb().transaction(async (tx) => {
     if (reset) {
-      for (const table of [flags, reviewEvents, experiences, contributors, subjects]) await tx.delete(table);
+      for (const table of [
+        flags,
+        reviewEvents,
+        screenings,
+        anomalies,
+        requestSignals,
+        contributorTrust,
+        experiences,
+        contributors,
+        subjects,
+      ])
+        await tx.delete(table);
     }
     for (const c of chunks([...subjectRows.values()])) await tx.insert(subjects).values(c);
     for (const c of chunks(contributorRows)) await tx.insert(contributors).values(c);

@@ -40,6 +40,11 @@ async function SubjectDetail({ params }: Pick<PageProps<"/subjects/[slug]">, "pa
   return (
     <>
       <h1 className="text-3xl font-bold text-balance">{subject.name}</h1>
+      {teaser.activityNotice && (
+        <p role="status" className="mt-3 max-w-xl rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+          {teaser.activityNotice}
+        </p>
+      )}
       <dl className="mt-4 grid max-w-xl grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm">
         <dt className="text-muted-foreground">Published experiences</dt>
         <dd>{teaser.publishedCount}</dd>

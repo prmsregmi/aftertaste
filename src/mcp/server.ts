@@ -3,6 +3,7 @@ import { error, MCPServer, text } from "mcp-use";
 import { z } from "zod";
 import { SUBJECT_KINDS, submissionSchema } from "@/lib/aftertaste/contracts";
 import { searchOutputSchema } from "./output-schemas";
+import { headerSetOf, uaFamilyOf } from "@/lib/aftertaste/integrity/network";
 import { CONTRIBUTION_GUIDE, SERVER_INSTRUCTIONS, siteUrl } from "@/lib/aftertaste/guide";
 import {
   type Actor,
@@ -27,7 +28,10 @@ const server = new MCPServer({
   instructions: SERVER_INSTRUCTIONS,
 });
 
-type Ctx = { request?: { raw: Request; header(name: string): string | undefined } };
+type Ctx = {
+  request?: { raw: Request; header(name: string): string | undefined };
+  client?: { info?(): { name?: string; version?: string } };
+};
 
 // Anonymous by default; a valid bearer token attaches a contributor identity. An unrecognized
 // token degrades to anonymous (with a warning) instead of a 401, which some clients treat as an OAuth prompt.
@@ -36,13 +40,28 @@ async function actorOf(ctx: Ctx): Promise<Actor & { invalidToken: boolean }> {
   const ip = ctx.request && ipAddress(ctx.request.raw);
   const token = /^Bearer\s+(\S+)$/i.exec(ctx.request?.header("authorization") ?? "")?.[1];
   const contributor = token ? await authenticate(token) : null;
+  const raw = ctx.request?.raw;
+  const info = ctx.client?.info?.() ?? {};
   return {
     contributorId: contributor?.id ?? null,
     contributorLabel: contributor?.label ?? null,
     inkboxHandle: contributor?.inkboxHandle ?? null,
+    contributorCreatedAt: contributor?.createdAt ?? null,
     ipHash: hashIp(ip || "unknown"),
     ipKnown: Boolean(ip),
     invalidToken: Boolean(token && !contributor),
+    // Self-reported client facts are only compared with each other, never trusted alone.
+    fingerprint: raw
+      ? {
+          ip: ip || null,
+          country: raw.headers.get("x-vercel-ip-country"),
+          ja4: raw.headers.get("x-vercel-ja4-digest"),
+          headerHash: headerSetOf(raw.headers),
+          uaFamily: uaFamilyOf(raw.headers.get("user-agent")),
+          clientName: info.name?.slice(0, 80) ?? null,
+          clientVersion: info.version?.slice(0, 40) ?? null,
+        }
+      : null,
   };
 }
 

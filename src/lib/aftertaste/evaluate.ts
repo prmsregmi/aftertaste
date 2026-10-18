@@ -55,6 +55,9 @@ const PROMO_PHRASES =
   /\b(?:buy (?:now|here|at|it)|discount code|promo code|use (?:my )?code|limited time|click (?:here|this|the link)|five stars|5 stars|best \w+ ever|order (?:now|today)|affiliate|don'?t miss|act now)\b/gi;
 const TRACKING_LINK =
   /https?:\/\/\S*(?:[?&](?:ref|aff|affiliate|tag|coupon|promo|discount|utm_[a-z]+)=|amzn\.to|bit\.ly|tinyurl\.com)\S*/gi;
+// Text addressed to the AI systems that will read the record: the prompt-injection shape of review spam.
+const AI_DIRECTIVE =
+  /\b(?:ignore|disregard|forget)\b[^.]{0,30}\b(?:previous|prior|above|earlier|all)\b[^.]{0,20}\b(?:instructions?|prompts?|rules)\b|\b(?:system prompt|developer message)\b|\b(?:ai|assistants?|agents?|llms?|language models?|chatbots?)\b[^.]{0,40}\b(?:must|should|always)\b[^.]{0,40}\b(?:recommend|rank|mention|prefer|promote)\b/i;
 const UNIVERSAL_CLAIM =
   /\b(?:every|all|always|never|nobody|everyone)\b[^.!?]{0,60}\b(?:defective|broken|scam|perfect|best|worst|fake|amazing|terrible)\b/i;
 
@@ -148,6 +151,13 @@ export function evaluateSubmission(input: Submission): Evaluation {
       "overgeneralized_claim",
       "pending_review",
       "A single experience cannot support a claim about every unit or every user; scope it to what was observed.",
+    );
+  }
+  if (AI_DIRECTIVE.test(text)) {
+    flag(
+      "instructions_to_ai",
+      "pending_review",
+      "Records may only describe experiences; text addressed to AI readers is held for review.",
     );
   }
   if (spam >= 3) {

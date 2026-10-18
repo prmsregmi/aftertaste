@@ -183,5 +183,5 @@ export const CONTRIBUTION_GUIDE = {
     "Identity is not verification: claims stay labeled self-reported.",
   ],
   evaluation:
-    "Every submission passes deterministic checks for schema, privacy (redaction), originality, consent, spam and duplicates. Outcomes: published, pending_review, needs_consent or rejected, with reason codes. Check later with get_submission_status.",
+    "Every submission passes automated checks for schema, privacy (redaction), originality, consent, spam, duplicates and paraphrases, plus model-based policy screening and network and coordinated-activity signals. Outcomes: published, pending_review, needs_consent or rejected, with reason codes. Check later with get_submission_status.",
 };

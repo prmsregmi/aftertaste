@@ -1,16 +1,21 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  cidr,
   index,
   integer,
   jsonb,
   pgEnum,
   pgTable,
+  real,
   serial,
   text,
   timestamp,
   uniqueIndex,
+  vector,
 } from "drizzle-orm/pg-core";
+
+export const EMBEDDING_DIMENSIONS = 512;
 
 export const subjectKind = pgEnum("subject_kind", [
   "physical_product",
@@ -126,6 +131,12 @@ export const experiences = pgTable(
     isPublicSample: boolean("is_public_sample").notNull().default(false),
     searchText: text("search_text").notNull(),
     flagCount: integer("flag_count").notNull().default(0),
+    // Integrity layer: ranking weight in [0, 1] (1 = full trust), combined risk in [0, 1], and the
+    // embedding used for paraphrase detection. Weight changes ranking, never the record text.
+    integrityWeight: real("integrity_weight").notNull().default(1),
+    riskScore: real("risk_score"),
+    screenedAt: timestamp("screened_at", { withTimezone: true }),
+    embedding: vector("embedding", { dimensions: EMBEDDING_DIMENSIONS }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -138,6 +149,7 @@ export const experiences = pgTable(
       .on(t.submitterKey, t.idempotencyKey)
       .where(sql`${t.idempotencyKey} is not null`),
     index("experiences_search_idx").using("gin", sql`to_tsvector('english', ${t.searchText})`),
+    index("experiences_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
   ],
 );
 
@@ -164,3 +176,111 @@ export const flags = pgTable("flags", {
   submitterKey: text("submitter_key").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// One row per write request (submit, register, flag). Raw IPs are never stored: only salted hashes of
+// the address and its /24 (IPv4) or /48 (IPv6) prefix, plus coarse network facts.
+export const requestSignals = pgTable(
+  "request_signals",
+  {
+    id: serial("id").primaryKey(),
+    action: text("action").$type<"submit" | "register" | "flag">().notNull(),
+    submitterKey: text("submitter_key").notNull(),
+    contributorId: text("contributor_id"),
+    experienceId: text("experience_id"),
+    ipHash: text("ip_hash").notNull(),
+    prefixHash: text("prefix_hash").notNull(),
+    country: text("country"),
+    asn: integer("asn"),
+    asName: text("as_name"),
+    // platform_anthropic | platform_openai | tor | vpn | datacenter | residential | unknown
+    networkClass: text("network_class").notNull(),
+    ja4: text("ja4"),
+    headerHash: text("header_hash"),
+    uaFamily: text("ua_family"),
+    clientName: text("client_name"),
+    clientVersion: text("client_version"),
+    risk: real("risk").notNull(),
+    riskReasons: text("risk_reasons").array().notNull().default(sql`'{}'::text[]`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("request_signals_created_idx").on(t.createdAt),
+    index("request_signals_prefix_idx").on(t.prefixHash, t.createdAt),
+    index("request_signals_submitter_idx").on(t.submitterKey, t.createdAt),
+  ],
+);
+
+// Public CIDR lists (Tor exits, VPN and datacenter ranges, AI-platform egress), refreshed by the sweep.
+export const ipRanges = pgTable(
+  "ip_ranges",
+  {
+    id: serial("id").primaryKey(),
+    range: cidr("range").notNull(),
+    category: text("category").notNull(),
+    source: text("source").notNull(),
+    refreshedAt: timestamp("refreshed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("ip_ranges_range_idx").using("gist", sql`${t.range} inet_ops`)],
+);
+
+// ASN lookups cached per prefix hash, so a lookup happens at most once a day per network.
+export const ipIntel = pgTable("ip_intel", {
+  prefixHash: text("prefix_hash").primaryKey(),
+  asn: integer("asn"),
+  asName: text("as_name"),
+  asDomain: text("as_domain"),
+  country: text("country"),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Audit log of every model and classifier verdict, kept as training labels for a distilled classifier.
+export const screenings = pgTable(
+  "screenings",
+  {
+    id: serial("id").primaryKey(),
+    experienceId: text("experience_id")
+      .notNull()
+      .references(() => experiences.id),
+    layer: text("layer").notNull(),
+    model: text("model").notNull(),
+    result: jsonb("result").notNull(),
+    latencyMs: integer("latency_ms"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("screenings_experience_idx").on(t.experienceId)],
+);
+
+// Beta reputation per submitter: alpha counts records that held up, beta counts confirmed problems.
+export const contributorTrust = pgTable("contributor_trust", {
+  submitterKey: text("submitter_key").primaryKey(),
+  alpha: real("alpha").notNull().default(1),
+  beta: real("beta").notNull().default(1),
+  trust: real("trust").notNull().default(0.5),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Coordinated-activity findings from the sweep: bursts, polarity shifts, lockstep groups, shared infrastructure.
+export const anomalies = pgTable(
+  "anomalies",
+  {
+    id: text("id").primaryKey(),
+    // Stable identity of the finding, so re-running the sweep updates instead of duplicating.
+    key: text("key").notNull().unique(),
+    kind: text("kind").$type<"burst" | "polarity_shift" | "lockstep" | "shared_infrastructure">().notNull(),
+    subjectId: text("subject_id").references(() => subjects.id),
+    polarity: text("polarity"),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    windowEnd: timestamp("window_end", { withTimezone: true }).notNull(),
+    observed: integer("observed").notNull(),
+    expected: real("expected"),
+    pValue: real("p_value"),
+    score: real("score").notNull(),
+    experienceIds: text("experience_ids").array().notNull().default(sql`'{}'::text[]`),
+    submitterKeys: text("submitter_keys").array().notNull().default(sql`'{}'::text[]`),
+    status: text("status").$type<"detected" | "confirmed" | "dismissed">().notNull().default("detected"),
+    details: jsonb("details").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("anomalies_subject_idx").on(t.subjectId, t.status)],
+);

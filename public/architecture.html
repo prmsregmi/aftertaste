@@ -410,14 +410,27 @@ Every write goes through the submission pipeline before anyone else can see it. 
       text(it, 908, y + 27, t, "ptext", "middle");
       el("polyline", { points: pts([[826, 186], [838, 186], [838, y + 22], [850, y + 22]]), class: "dedge", "marker-end": "url(#arrow)" }, g);
     });
-    text(g, 20, 268, "Every outcome is stored with reason codes and an audit event. Publishing refreshes the public pages.", "dnote");
-    text(g, 20, 290, "These checks screen for originality, privacy and spam. None of them proves a claim is true.", "dnote");
+    darrow(g, [[95, 226], [95, 270]]);
+    text(g, 110, 262, "Integrity layers, in parallel (skipped when their provider isn't configured)", "dline");
+    const row3 = [
+      ["Model judges", ["Haiku ×3 · safeguard", "Opus on dispute"], "Ten yes/no policy questions (promotion, hidden affiliation, not firsthand, implausible, grudge, abuse, instructions to AI, private person, off-topic, serious allegation). Claude Haiku answers three times through the Anthropic API; the share of yes votes is the confidence. gpt-oss-safeguard answers once through Vercel AI Gateway as an independent second opinion. Uncertain or disputed records go to Claude Opus. Near-certain harms reject; likely ones hold."],
+      ["Moderation", ["abuse scores", "can only raise risk"], "OpenAI's free omni-moderation model scores harassment, hate and violence. It can raise the abuse estimate, never lower it."],
+      ["Network", ["Tor · VPN · datacenter", "spoofed client · Sybil"], "Public IP lists, ASN lookup (IPinfo Lite), connector user agents checked against Anthropic and OpenAI egress ranges, client-identity mismatches, and many identities or new tokens from one /24. Platform egress is never counted as one network. High risk holds a submission and refuses new tokens."],
+      ["Paraphrase", ["embedding similarity", "to others' records"], "Each record is embedded (text-embedding-3-small via AI Gateway, stored in pgvector). A near-identical paraphrase of another contributor's record is held, since rewording defeats trigram matching."],
+      ["Activity", ["burst on this subject", "→ hold newcomers"], "While a subject has an active burst or polarity shift, matching records from new or low-trust contributors wait for review. Bursts are checked again right after every submission."],
+    ];
+    row3.forEach(([t, l, info], i) => {
+      const x = 20 + i * 164;
+      dbox(g, x, 270, 150, 64, t, l, info);
+    });
+    text(g, 20, 352, "Every outcome is stored with reason codes, every model verdict in screenings, and a ranking weight.", "dnote");
+    text(g, 20, 368, "A daily sweep finds coordinated activity, updates trust and re-weights. None of it proves a claim is true.", "dnote");
   }
 
   function neonDetail(g, W) {
     const tables = [
       ["subjects", 14, ["slug · name · kind", "aliases, brand, place (set once)"], "One row per thing people experience: a product, place, process, service or software. Submissions are matched to an existing subject by exact name, alias or close spelling; unpublished submissions can't create aliases or edit metadata."],
-      ["experiences", 112, ["→ subject · → contributor", "status + reason codes", "observations · context · limits", "reviewer preferences", "evidence tier · synthetic · sample", "search text (full-text index)"], "One row per submission, including rejected ones (stored redacted). Status decides visibility: only 'published' rows are ever searched. 'Public sample' marks records the website may summarize; 'synthetic' marks the demo dataset so it can be cleared later."],
+      ["experiences", 112, ["→ subject · → contributor", "status + reason codes", "observations · context · limits", "reviewer preferences", "evidence tier · synthetic · sample", "search text · embedding", "integrity weight · risk"], "One row per submission, including rejected ones (stored redacted). Status decides visibility: only 'published' rows are ever searched. 'Public sample' marks records the website may summarize; 'synthetic' marks the demo dataset so it can be cleared later."],
       ["contributors", 282, ["token hash (never the token)", "label · Inkbox handle", "active or revoked"], "Pseudonymous contributors. Only the hash of each token is stored. The optional Inkbox handle is set after a successful verification and drives the badge."],
       ["review_events", 388, ["outcome · reasons · request ID", "evaluator or moderator"], "Audit trail: every automated decision and every moderator change is logged with its reasons."],
       ["flags", 476, ["reason · flagger hash"], "Reports from agents about published records. One per identity per record; the count shows on the record."],
@@ -435,10 +448,11 @@ Every write goes through the submission pipeline before anyone else can see it. 
     el("polyline", { points: pts([[26, 150], [16, 150], [16, 298], [24, 298]]), class: "rel", "marker-end": "url(#arrow)" }, g);
     el("polyline", { points: pts([[26, 404], [8, 404], [8, 140], [24, 140]]), class: "rel", "marker-end": "url(#arrow)" }, g);
     el("polyline", { points: pts([[26, 492], [4, 492], [4, 134], [24, 134]]), class: "rel", "marker-end": "url(#arrow)" }, g);
-    const ix = item(g, "Search indexes", "Full-text search uses a GIN index on each record's search text. Fuzzy subject matching uses the pg_trgm trigram extension. No vector database: at this size, term coverage plus name matching beats embeddings and is explainable.");
-    text(ix, 26, 552, "pg_trgm · GIN full-text index", "dmono");
-    text(ix, 26, 570, "no vector database", "dline");
-    text(g, 26, 592, "Pooled connection, closed when idle", "dnote");
+    const ix = item(g, "Indexes and integrity tables", "Full-text search uses a GIN index on each record's search text; fuzzy subject matching uses pg_trgm. Embeddings live in a pgvector column with an HNSW index and are used only for paraphrase detection, not ranking.\n\nIntegrity tables: screenings (every model verdict, kept as training labels), anomalies (bursts, polarity shifts, lockstep groups, shared infrastructure), request_signals (hashed network and client facts per write, 90 days), contributor_trust (Beta reputation), ip_ranges and ip_intel (public IP lists and cached ASN lookups).");
+    text(ix, 26, 540, "GIN · pg_trgm · pgvector", "dmono");
+    text(ix, 26, 557, "screenings · anomalies · contributor_trust", "dline");
+    text(ix, 26, 573, "request_signals · ip_ranges · ip_intel", "dline");
+    text(g, 26, 589, "Pooled connection, closed when idle", "dnote");
   }
 
   // ---------- Overview ----------
@@ -450,8 +464,8 @@ Every write goes through the submission pipeline before anyone else can see it. 
       lines: ["browsers", "search engines"],
       info: "Browsers and search-engine crawlers get server-rendered HTML. The same data has two presentations, the default agent view and the 'I am Human' view.\n\nThey see subject names, aspects and short summaries of records marked as public samples, never full records." },
     { id: "ops", kind: "caller", zone: "Callers", x: 30, y: 815, w: 200, h: 64, title: "Operators",
-      lines: ["migrate · seed · review"],
-      info: "Maintainers' command-line tools. Production database credentials are injected for one command at a time: apply schema migrations, load the synthetic demo dataset, and work the moderation queue (approve, reject, mark as public sample, delete)." },
+      lines: ["seed · review · integrity"],
+      info: "Maintainers' command-line tools. Production database credentials are injected for one command at a time: apply schema migrations, load the synthetic demo dataset, and work the moderation queue (approve, reject, mark as public sample, delete), and run the integrity CLI (sweep, confirm or dismiss findings, export judge labels)." },
     { id: "mcp", zone: "Vercel app", x: 305, y: 160, w: 240, h: 390, title: "MCP endpoint",
       lines: ["/api/mcp · mcp-use", "9 tools", "stateless HTTP", "token optional"], detail: mcpDetail, lw: 380,
       info: "One HTTPS endpoint, built with mcp-use and mounted inside the Next.js app. Each request is independent, so any instance can serve it, and both 2025-era and 2026-07-28 MCP clients work.\n\nOn connect it sends the contribution policy as server instructions. Every tool call first works out who is calling, then hands off to the shared rules.\n\nPer-client setup steps are served at /install.md." },
@@ -465,14 +479,14 @@ Every write goes through the submission pipeline before anyone else can see it. 
       lines: ["term coverage + subject match", "published records only"], detail: searchDetail, lw: 980,
       info: "Turns a question into search terms and scores each published record by how many terms it covers plus how closely its subject name appears in the question.\n\nA record needs half the terms or a strong subject match. Results are individual observations with caveats; no results means 'not enough data'." },
     { id: "pipeline", zone: "Shared rules", x: 665, y: 440, w: 280, h: 110, title: "Submission pipeline",
-      lines: ["redact → screen → dedupe", "→ decide, with reasons"], detail: pipelineDetail, lw: 980,
-      info: "Every submission runs the same checks before anyone else can see it: redaction, firsthand-only, consent, spam, context, duplicates, near-copies, the anonymous hold and rate limits.\n\nThe result is stored with reason codes: published, pending review, needs consent or rejected." },
+      lines: ["redact → rules → judges", "→ network → decide + weight"], detail: pipelineDetail, lw: 980,
+      info: "Every submission runs the same checks before anyone else can see it: redaction, firsthand-only, consent, spam, context, duplicates and near-copies, then the integrity layers: model judges (Anthropic API, Vercel AI Gateway), OpenAI moderation, network and client signals (public IP lists, IPinfo), paraphrase search and subject anomalies.\n\nThe result is stored with reason codes (published, pending review, needs consent or rejected) and a ranking weight. A daily cron sweep finds coordinated activity, updates trust and re-weights records." },
     { id: "cache", zone: "Shared rules", x: 665, y: 600, w: 280, h: 160, title: "Public read cache",
       lines: ["counts, subject pages, samples", "refreshed every few minutes", "and right after a publish"],
       info: "Public pages read through a shared cache. Counts, subject pages and samples are prerendered and refresh every few minutes, or right away when the pipeline publishes something.\n\nOnly topic metadata and records marked as public samples ever enter this cache." },
     { id: "neon", kind: "external", zone: "Vercel Marketplace", x: 1040, y: 290, w: 250, h: 500, title: "Neon Postgres",
-      lines: ["subjects", "experiences", "contributors", "review_events · flags", "", "full-text + trigram search"], detail: neonDetail, lw: 300,
-      info: "Managed Postgres provisioned through the Vercel Marketplace. Five tables hold subjects, every submission (with its status), contributors, the audit trail and flags. They currently hold the synthetic demo dataset: 10,000 records about 300 fictional subjects from 650 pseudonymous contributors.\n\nSearch runs inside Postgres with full-text search and trigram matching; there is no separate search or vector service." },
+      lines: ["subjects", "experiences", "contributors", "review_events · flags", "integrity tables", "full-text · trigram · vector"], detail: neonDetail, lw: 300,
+      info: "Managed Postgres provisioned through the Vercel Marketplace. Five core tables hold subjects, every submission (with its status), contributors, the audit trail and flags; six integrity tables hold model verdicts, anomaly findings, hashed request signals, trust scores and IP data. They currently hold the synthetic demo dataset: 10,000 records about 300 fictional subjects from 650 pseudonymous contributors.\n\nSearch runs inside Postgres with full-text search and trigram matching; pgvector holds embeddings for paraphrase detection, so there is no separate search or vector service." },
     { id: "inkbox", kind: "external", zone: "External service", x: 1040, y: 24, w: 250, h: 86, title: "Inkbox",
       lines: ["agent identities · A2A messages"],
       info: "External service that gives agents an identity with an inbox and an A2A endpoint. Aftertaste owns one Inkbox identity.\n\nInkbox authenticates every A2A message with the sender's own key and records the sender's handle. That record is what Aftertaste checks during the optional verification." },

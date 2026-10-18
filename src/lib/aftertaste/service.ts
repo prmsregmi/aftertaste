@@ -1,11 +1,24 @@
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { and, count, desc, eq, gt, inArray, ne, or, sql } from "drizzle-orm";
 import { revalidateTag } from "next/cache";
+import { waitUntil } from "@vercel/functions";
 import { getDb } from "@/db";
-import { contributors, experiences, flags, reviewEvents, subjects } from "@/db/schema";
+import { contributors, experiences, flags, reviewEvents, screenings, subjects } from "@/db/schema";
 import type { Submission } from "./contracts";
 import * as inkbox from "./inkbox";
 import { evaluateSubmission, type Status } from "./evaluate";
+import { newId, sha256 } from "./ids";
+import { screenContent } from "./integrity/judges";
+import { NETWORK_BLOCK_REGISTRATION, type RequestFingerprint } from "./integrity/network";
+import { assessNetwork, recordRequestSignal } from "./integrity/network-db";
+import {
+  assessSubmission,
+  CONTENT_MESSAGES,
+  recordAssessment,
+  SCREENING_INCOMPLETE,
+  type IntegrityInput,
+} from "./integrity/pipeline";
+import { activeAnomalies, detectSubjectBursts } from "./integrity/sweep";
 
 export const CACHE_TAG = "aftertaste";
 
@@ -23,7 +36,24 @@ export type Actor = {
   ipHash: string;
   // False when the platform supplied no client IP; such anonymous callers share one rate-limit bucket.
   ipKnown: boolean;
+  contributorCreatedAt?: Date | null;
+  // Request-level client and network facts; held in memory only (the raw IP is never stored).
+  fingerprint?: RequestFingerprint | null;
 };
+
+// Keeps the function alive for background work after the response; outside Vercel the promise simply runs.
+// (next/server's after() is unavailable here: mcp-use bundles the MCP server with its own Next shims.)
+function afterResponse(fn: () => Promise<unknown>) {
+  waitUntil(fn().catch((err) => console.error(JSON.stringify({ event: "background_failed", error: String(err) }))));
+}
+
+function refreshPublicPages() {
+  try {
+    revalidateTag(CACHE_TAG, "max");
+  } catch {
+    // Outside a Next request (operator scripts) there is no cache to revalidate.
+  }
+}
 
 export class AftertasteError extends Error {
   constructor(
@@ -34,13 +64,7 @@ export class AftertasteError extends Error {
   }
 }
 
-export function newId(prefix: string) {
-  return `${prefix}_${randomBytes(9).toString("base64url")}`;
-}
-
-export function sha256(value: string) {
-  return createHash("sha256").update(value).digest("hex");
-}
+export { newId, sha256 };
 
 export function hashIp(ip: string) {
   const salt = process.env.AFTERTASTE_HASH_SALT;
@@ -119,6 +143,12 @@ function evidenceTierFor(s: Submission) {
 
 type InsertOptions = {
   status: Status;
+  integrity?: {
+    weight: number;
+    riskScore: number | null;
+    screenedAt: Date | null;
+    embedding: number[] | null;
+  };
   reasonCodes: string[];
   reasonText: string | null;
   actor: Actor | null;
@@ -160,6 +190,10 @@ export function experienceRow(s: Submission, contentHash: string, subjectId: str
     isDemoFixture: opts.isDemoFixture ?? false,
     isPublicSample: opts.isPublicSample ?? false,
     searchText: searchTextOf(s),
+    integrityWeight: opts.integrity?.weight ?? 1,
+    riskScore: opts.integrity?.riskScore ?? null,
+    screenedAt: opts.integrity?.screenedAt ?? null,
+    embedding: opts.integrity?.embedding ?? null,
   } satisfies typeof experiences.$inferInsert;
 }
 
@@ -279,6 +313,22 @@ export async function submitExperience(input: Submission, actor: Actor) {
     }
   }
 
+  // Integrity layers: content judges, network signals, paraphrase search, trust and subject anomalies.
+  const integrityInput: IntegrityInput = {
+    submission: redacted,
+    subjectSlug: subjectSlug(redacted.subject),
+    submitterKey: key,
+    contributorId: actor.contributorId,
+    contributorCreatedAt: actor.contributorCreatedAt ?? null,
+    ipHash: actor.ipHash,
+    fingerprint: actor.fingerprint ?? null,
+  };
+  const integrity = status === "rejected" ? null : await assessSubmission(integrityInput);
+  if (integrity) {
+    for (const r of integrity.rejects) hold(r.code, r.message, "rejected");
+    for (const h of integrity.holds) hold(h.code, h.message);
+  }
+
   if (status !== "rejected" && !actor.contributorId) {
     hold(
       "anonymous_queue",
@@ -292,12 +342,32 @@ export async function submitExperience(input: Submission, actor: Actor) {
     reasonText: messages.join(" ") || null,
     actor,
     requestId,
+    integrity: integrity
+      ? {
+          weight: integrity.weight,
+          riskScore: integrity.contentRisk,
+          screenedAt: integrity.screened ? new Date() : null,
+          embedding: integrity.embedding,
+        }
+      : undefined,
   });
+  if (integrity) await recordAssessment(id, integrityInput, integrity);
 
   console.log(
-    JSON.stringify({ event: "submission", requestId, experienceId: id, status, reasonCodes, registered: !!actor.contributorId }),
+    JSON.stringify({
+      event: "submission",
+      requestId,
+      experienceId: id,
+      status,
+      reasonCodes,
+      registered: !!actor.contributorId,
+      contentRisk: integrity?.contentRisk ?? null,
+      networkRisk: integrity?.network?.risk ?? null,
+    }),
   );
-  if (status === "published") revalidateTag(CACHE_TAG, "max");
+  if (status === "published") refreshPublicPages();
+  // Burst detection for this subject, off the response path.
+  afterResponse(() => detectSubjectBursts([subject.id]));
 
   return {
     id,
@@ -329,9 +399,11 @@ type SearchRow = {
   contributor_label: string | null;
   inkbox_handle: string | null;
   created_at: string;
+  subject_id: string;
   subject_name: string;
   subject_slug: string;
   subject_kind: string;
+  integrity_weight: number;
   score: number;
 };
 
@@ -381,9 +453,10 @@ export async function searchExperiences(query: string, opts: { kind?: string; li
     )
     select id, summary, variant, source_type, evidence_tier, observed_on, observations, context, preferences, limitations,
            derived_from, is_demo_fixture, flag_count, contributor_id, contributor_label, inkbox_handle, created_at,
-           subject_name, subject_slug, subject_kind, coverage + name_match as score
+           subject_id, subject_name, subject_slug, subject_kind, integrity_weight,
+           (coverage + name_match) * (0.5 + 0.5 * integrity_weight) as score
     from scored e
-    where coverage >= 0.5 or name_match > 0.5
+    where (coverage >= 0.5 or name_match > 0.5) and integrity_weight > 0
     order by score desc, ${TIER_ORDER} desc, created_at desc
     limit ${limit}`);
 
@@ -411,9 +484,11 @@ export async function searchExperiences(query: string, opts: { kind?: string; li
       flagCount: r.flag_count,
       observedOn: r.observed_on,
     }),
+    integrity: integrityOf(r.integrity_weight),
     uri: `aftertaste://experiences/${r.id}`,
   }));
 
+  const notices = await activityNotices([...new Set(rows.map((r) => r.subject_id))]);
   const subjectNames = [...new Set(results.map((r) => r.subject.name))];
   const coverage =
     results.length === 0
@@ -423,10 +498,34 @@ export async function searchExperiences(query: string, opts: { kind?: string; li
     query,
     results,
     coverage_note: coverage,
+    ...(notices.length && { activity_notices: notices }),
     ...(subjectNames.length > 1 && {
       disambiguation: `Results span ${subjectNames.length} subjects (${subjectNames.join("; ")}). Confirm which one the user means.`,
     }),
   };
+}
+
+// Coarse on purpose: exact weights and thresholds would help someone tune records to pass.
+function integrityOf(weight: number) {
+  return {
+    weight,
+    standing: weight >= 0.7 ? "normal" : weight >= 0.3 ? "reduced" : "minimal",
+  };
+}
+
+// Steam-style notice: unusual activity is disclosed, never silently corrected.
+async function activityNotices(subjectIds: string[]) {
+  if (!subjectIds.length) return [];
+  const all = await Promise.all(subjectIds.map((id) => activeAnomalies(id, 24 * 14)));
+  return all.flatMap((list, i) =>
+    list
+      .filter((a) => a.kind === "burst" || a.kind === "polarity_shift" || a.status === "confirmed")
+      .slice(0, 1)
+      .map((a) => ({
+        subject_id: subjectIds[i],
+        notice: `Unusual ${a.polarity ? `${a.polarity} ` : ""}activity on this subject between ${a.windowStart.toISOString().slice(0, 10)} and ${a.windowEnd.toISOString().slice(0, 10)}; records from that window carry less weight.`,
+      })),
+  );
 }
 
 export async function getExperience(id: string) {
@@ -461,6 +560,7 @@ export async function getExperience(id: string) {
     synthetic: e.isDemoFixture,
     contributor: attributionOf({ ...e, label: c?.label, inkboxHandle: c?.inkboxHandle }),
     flag_count: e.flagCount,
+    integrity: integrityOf(e.integrityWeight),
     published_at: e.createdAt.toISOString(),
     caveat: caveatFor(e),
     untrusted_content_notice:
@@ -506,6 +606,27 @@ export async function registerContributor(label: string, kind: "agent" | "person
   if (recent.n >= LIMITS.registrationsPerHour) {
     throw new AftertasteError("rate_limited", "Too many registrations from this network in the last hour.");
   }
+  // Token farming is the cheapest Sybil attack, so registration is where network signals bite hardest.
+  const signalInput = {
+    action: "register" as const,
+    submitterKey: submitterKey(actor),
+    contributorId: null,
+    contributorCreatedAt: null,
+    ipHash: actor.ipHash,
+    fingerprint: actor.fingerprint ?? null,
+  };
+  const network = signalInput.fingerprint
+    ? await assessNetwork({ ...signalInput, fingerprint: signalInput.fingerprint }).catch(() => null)
+    : null;
+  if (network && signalInput.fingerprint) {
+    await recordRequestSignal({ ...signalInput, fingerprint: signalInput.fingerprint }, network);
+  }
+  if (network && network.risk >= NETWORK_BLOCK_REGISTRATION) {
+    throw new AftertasteError(
+      "rate_limited",
+      "Registration from this network is limited right now. Retry later, or submit anonymously for review.",
+    );
+  }
   const id = newId("ctr");
   const token = `aft_${randomBytes(24).toString("base64url")}`;
   await db.insert(contributors).values({ id, label, kind, tokenHash: sha256(token), createdIpHash: actor.ipHash });
@@ -514,7 +635,12 @@ export async function registerContributor(label: string, kind: "agent" | "person
 
 export async function authenticate(token: string) {
   const [row] = await getDb()
-    .select({ id: contributors.id, label: contributors.label, inkboxHandle: contributors.inkboxHandle })
+    .select({
+      id: contributors.id,
+      label: contributors.label,
+      inkboxHandle: contributors.inkboxHandle,
+      createdAt: contributors.createdAt,
+    })
     .from(contributors)
     .where(and(eq(contributors.tokenHash, sha256(token)), eq(contributors.status, "active")));
   return row ?? null;
@@ -600,6 +726,19 @@ export async function flagExperience(id: string, reason: string, note: string | 
   if (recent.n >= LIMITS.flagsPerHour) throw new AftertasteError("rate_limited", "Flag limit reached for this hour.");
 
   await db.insert(flags).values({ experienceId: id, reason, note, submitterKey: key });
+  if (actor.fingerprint) {
+    const input = {
+      action: "flag" as const,
+      submitterKey: key,
+      contributorId: actor.contributorId,
+      contributorCreatedAt: actor.contributorCreatedAt ?? null,
+      ipHash: actor.ipHash,
+      fingerprint: actor.fingerprint,
+      experienceId: id,
+    };
+    const network = await assessNetwork(input).catch(() => null);
+    if (network) await recordRequestSignal(input, network);
+  }
   await db
     .update(experiences)
     .set({ flagCount: sql`${experiences.flagCount} + 1` })
@@ -699,6 +838,7 @@ export async function getSubjectTeaser(slug: string) {
     aspects: [...new Set(all.flatMap((e) => e.observations.map((o) => o.aspect)))],
     samples: rows.filter(({ e }) => e.isPublicSample).map(({ e, c }) => toPublicRecord(e, subject, c)),
     mcpOnlyCount: all.filter((e) => !e.isPublicSample).length,
+    activityNotice: (await activityNotices([subject.id]))[0]?.notice ?? null,
   };
 }
 
@@ -708,6 +848,92 @@ export async function listPublishedSubjectSlugs() {
     .from(subjects)
     .innerJoin(experiences, and(eq(experiences.subjectId, subjects.id), eq(experiences.status, "published")));
   return rows.map((r) => r.slug);
+}
+
+// ---- Integrity follow-up (sweep and operator CLI). ----
+
+function submissionFromRow(e: typeof experiences.$inferSelect, s: typeof subjects.$inferSelect): Submission {
+  const opt = <T>(v: T | null) => v ?? undefined;
+  return {
+    subject: { name: s.name, kind: s.kind, brand: opt(s.brand), location: opt(s.location) },
+    source_type: e.sourceType,
+    summary: e.summary,
+    variant: opt(e.variant),
+    observations: e.observations,
+    measurements: e.measurements,
+    context: e.context,
+    preferences: e.preferences,
+    use_case: opt(e.useCase),
+    method: opt(e.method),
+    observed_on: opt(e.observedOn),
+    sample_size: opt(e.sampleSize),
+    limitations: e.limitations,
+    evidence: e.evidence.map((ev) => ({
+      kind: ev.kind as NonNullable<Submission["evidence"]>[number]["kind"],
+      description: ev.description,
+      sha256: ev.sha256,
+      url: ev.url,
+    })),
+    derived_from: e.derivedFrom,
+    permission: e.permission,
+  };
+}
+
+// Records held because a model layer failed get screened again; clean ones from registered
+// contributors publish, the rest keep (or gain) their hold reasons.
+export async function rescreenPending(limit = 25) {
+  const db = getDb();
+  const rows = await db
+    .select({ e: experiences, s: subjects })
+    .from(experiences)
+    .innerJoin(subjects, eq(subjects.id, experiences.subjectId))
+    .where(
+      and(
+        eq(experiences.status, "pending_review"),
+        sql`'screening_incomplete' = any(${experiences.reasonCodes})`,
+        gt(experiences.createdAt, new Date(Date.now() - 3 * 86_400_000)),
+      ),
+    )
+    .limit(limit);
+  const outcomes: Record<string, Status | "still_incomplete"> = {};
+  for (const { e, s } of rows) {
+    const result = await screenContent(submissionFromRow(e, s));
+    if (result.layers.length) {
+      await db.insert(screenings).values(
+        result.layers.map((l) => ({ experienceId: e.id, layer: l.layer, model: l.model, result: l.result as object, latencyMs: l.latencyMs })),
+      );
+    }
+    if (!result.complete) {
+      outcomes[e.id] = "still_incomplete";
+      continue;
+    }
+    const codes = e.reasonCodes.filter((c) => c !== "screening_incomplete");
+    const messages = [(e.reasonText ?? "").replace(SCREENING_INCOMPLETE, "").trim()].filter(Boolean);
+    for (const q of result.decision?.reasons ?? []) {
+      codes.push(`content_${q}`);
+      messages.push(CONTENT_MESSAGES[q]);
+    }
+    const status: Status =
+      result.decision?.outcome === "reject" ? "rejected" : codes.length ? "pending_review" : "published";
+    await db
+      .update(experiences)
+      .set({
+        status,
+        reasonCodes: codes,
+        reasonText: messages.join(" ") || null,
+        riskScore: result.decision?.risk ?? null,
+        screenedAt: new Date(),
+        ...(result.embedding && !e.embedding ? { embedding: result.embedding } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(experiences.id, e.id));
+    await db
+      .insert(reviewEvents)
+      .values({ experienceId: e.id, actor: "evaluator", outcome: status, reasonCodes: codes, note: "re-screened" });
+    outcomes[e.id] = status;
+  }
+  if (Object.values(outcomes).includes("published")) refreshPublicPages();
+  return outcomes;
 }
 
 // ---- Moderation (admin script only). ----

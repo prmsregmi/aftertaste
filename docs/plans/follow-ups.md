@@ -1,13 +1,13 @@
 # Aftertaste: handoff
 
-Untracked working document (excluded via `.git/info/exclude`). It is the source of truth for the next agent; keep it current instead of relying on chat history.
+Tracked in git. It is the source of truth for the next agent; keep it current instead of relying on chat history.
 
-## Where things stand (2026-10-17)
+## Where things stand (2026-10-18)
 
 - **Product**: Aftertaste (renamed from Experience Commons). "Word of mouth, from agent to agent." An MCP server where agents search and write back firsthand experiences, plus a small website.
 - **Live**: https://aftertaste-ai.vercel.app (old alias experience-commons.vercel.app still serves). MCP endpoint `/api/mcp`. Vercel project `aftertaste` on team `prestons-projects-ac5810a7`, CLI login `parinaadhi-3720`. Deploys are CLI only: `vercel deploy --prod --yes` (no Git integration).
 - **Repo**: github.com/prmsregmi/aftertaste. The user wants commits straight on `main`, no AI attribution in commits. A teammate (ppastram) also pushes to `main`, so `git pull --rebase` before pushing.
-- **Stack**: Next.js 16.4 App Router (Cache Components on), mcp-use 2.10 embedded via `withMcpUse` + `createNextHandler` (`src/mcp/server.ts`), Drizzle + `pg` Pool, Tailwind v4 + shadcn. Business rules in `src/lib/aftertaste/` (contracts, evaluate, service, guide, inkbox).
+- **Stack**: Next.js 16.4 App Router (Cache Components on), mcp-use 2.10 embedded via `withMcpUse` + `createNextHandler` (`src/mcp/server.ts`), Drizzle + `pg` Pool, Tailwind v4 + shadcn. Business rules in `src/lib/aftertaste/` (contracts, evaluate, service, guide, inkbox, and `integrity/` for the screening layers). Model calls use `@anthropic-ai/sdk` 0.135 and `ai` 7 (Vercel AI Gateway).
 - **Database**: Neon (Vercel Marketplace store `experience-commons-db`), holding only the synthetic dataset: 10,000 published public records, 300 subjects, 650 pseudonymous contributors (loaded 2026-10-17 with `scripts/seed.ts --reset`). Its text is template-generated and often incoherent; replacing it with real-world subjects is item 2.
 - **Env on Vercel**: Neon vars (`DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `POSTGRES_*`, `PG*`), `AFTERTASTE_HASH_SALT` (secret; salts IP hashes and Inkbox challenge signatures), `SITE_URL=https://aftertaste-ai.vercel.app` (pins canonical links).
 - **Architecture page**: `/architecture.html` (noindex) and https://claude.ai/artifact/AvXJG1Pe59z8V1YVznoy1E (source in the session scratchpad; the public copy is `public/architecture.html`).
@@ -15,8 +15,20 @@ Untracked working document (excluded via `.git/info/exclude`). It is the source 
 
 ## Working state at handoff
 
-- `main` is clean, in sync with `origin/main` and equal to what's deployed (last commit "Rewrite the README around problem, insight and tools"; the README rewrite needed no deploy). Only the untracked `.agents/`, `.claude/`, `skills-lock.json` and this doc are outside git.
-- Nothing is running in the background (dev server and watchers stopped).
+- `main` carries the integrity layer (item 0) and is **ahead of production**: migration `0003_integrity` is not applied to Neon and nothing has been deployed since. Server instructions were also trimmed (permission paragraph and demo note removed, "use alongside other sources" added).
+- Verified locally against Postgres 16 + pgvector: lint, typecheck, 43 unit tests, `next build`, the MCP end-to-end demo, and `scripts/simulate-attack.ts` (an 8-account review bomb: 3 of 8 registrations refused, all 24 records held or quarantined, burst, polarity shift, lockstep and shared-infrastructure findings, subject notice in search). Model layers were tested with fakes only; no API keys were available.
+
+## 0. Integrity layer: activate and calibrate (built 2026-10-18)
+- **What it is**: see DECISIONS.md, Evaluation, and `src/lib/aftertaste/integrity/` (rubric, judges, network, behavior, sweep, pipeline). Operator CLI: `pnpm integrity sweep|ranges|anomalies|confirm|dismiss|screen|export`. Cron: `/api/cron/integrity`, daily at 04:17 UTC (`vercel.json`).
+- **To go live, in order** (the user deploys):
+  1. `vercel env run -e production -- pnpm exec drizzle-kit migrate` (adds the `vector` extension, six tables and four `experiences` columns). Must run before the deploy.
+  2. Add env vars on Vercel: `ANTHROPIC_API_KEY` (judges), `OPENAI_API_KEY` (moderation), `IPINFO_TOKEN` (free IPinfo Lite, ASN), `CRON_SECRET` (any long random string). AI Gateway authenticates with the deployment's OIDC token, so it needs no key on Vercel (locally: `AI_GATEWAY_API_KEY`). Any missing key just skips its layer.
+  3. `vercel deploy --prod --yes`.
+  4. `vercel env run -e production -- pnpm exec tsx scripts/integrity.ts sweep` once, to load IP lists and trust scores.
+  5. Optional: a Vercel WAF rate-limit rule on `/api/mcp` keyed by IP (edge flood protection). Don't enable BotID or Bot Protection on that route; agents are the expected callers.
+- **Tunables**: `AFTERTASTE_JUDGE_MODEL`, `AFTERTASTE_ESCALATION_MODEL`, `AFTERTASTE_SECOND_MODEL`, `AFTERTASTE_EMBEDDING_MODEL`, `AFTERTASTE_SCREENING=off` (kill switch). Thresholds live in `rubric.ts`, `behavior.ts`, `network.ts` and `pipeline.ts`.
+- **Next**: smoke-test the judges with real keys on a handful of good and bad records; label a gold set of 300–500 records and recalibrate thresholds; then distill a classifier from `pnpm integrity export`. Unverified: whether `gpt-oss-safeguard-20b` accepts structured output through the gateway (if not, the second opinion just logs an error and is skipped). The synthetic dataset has no embeddings, so paraphrase search only covers new records.
+- **Cost estimate**: about 4 Haiku-sized calls per submission (~$0.002) plus an Opus call on disputed records only.
 
 ## Hackathon tracks
 
