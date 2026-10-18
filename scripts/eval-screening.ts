@@ -34,10 +34,16 @@ async function main() {
       continue;
     }
     const rules = evaluateSubmission(parsed.data);
+    // As in production, a record the rules reject never reaches the models.
+    if (rules.status === "rejected") {
+      results.push({ id: c.id, category: c.category, expected: c.expected, got: "reject", expected_flags: c.expected_flags ?? [], flags: [], rules: rules.reasonCodes });
+      console.log(`${c.expected === "reject" ? "ok  " : "MISS"} ${c.id.padEnd(12)} want ${c.expected.padEnd(7)} got reject  (rules) ${rules.reasonCodes.join(",")}`);
+      continue;
+    }
     const content = await screenContent(rules.redacted, providers);
     const decision = content.decision?.outcome;
     const got: Outcome =
-      rules.status === "rejected" || decision === "reject"
+      decision === "reject"
         ? "reject"
         : rules.status !== "published" || decision === "hold" || !content.complete
           ? "hold"
