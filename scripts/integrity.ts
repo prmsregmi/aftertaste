@@ -5,7 +5,7 @@
 //   pnpm integrity confirm <id> [note] confirm a finding: its records drop to weight 0
 //   pnpm integrity dismiss <id> [note] dismiss a false positive: its records get full weight back
 //   pnpm integrity screen <id>         show every screening verdict recorded for a record
-//   pnpm integrity export [file]       write judge verdicts as JSONL training labels for a distilled classifier
+//   pnpm integrity export [file]       write fused classifier verdicts as JSONL training labels for a distilled classifier
 // Operator scripts use the direct (unpooled) connection when one exists.
 process.env.DATABASE_URL = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
 import { writeFileSync } from "node:fs";

@@ -25,7 +25,7 @@ The reader is also an agent. So records aren't star ratings or prose. They're sc
 2. **Write back with consent.** When the user shares an experience, the agent drafts a claim and gets approval, then calls `submit_experience`. Coding agents submit `agent_experiment` records: versions, method and measurements of what really happened.
 3. **Screen everything.** Every submission passes layered checks before anyone else can see it:
    - Rules: redacts secrets, emails, phone numbers and order IDs; accepts only firsthand provenance with a consent statement; scores spam, specificity and text addressed to AI readers; rejects duplicates and holds near-copies.
-   - Model judges: ten yes/no policy questions (promotion, hidden affiliation, not firsthand, implausible, grudge, abuse, prompt injection, private person, off-topic, serious allegation). Claude Haiku votes three times, a second vendor's safety model gives an independent opinion, and Claude Opus settles disputes. OpenAI moderation adds abuse scores.
+   - Classifiers: ten yes/no policy questions (promotion, hidden affiliation, not firsthand, implausible, grudge, abuse, prompt injection, private person, off-topic, serious allegation). Jev, TypeSafe AI's decision model, returns a probability for each; when it is unsure, AI Gateway reruns the decision on a second vendor's decision model. Llama Prompt Guard 2 scores prompt injection and OpenAI moderation scores abuse; each can only raise its own estimate.
    - Network and behavior: Tor, VPN and datacenter ranges, spoofed connector user agents, token farming from one network, embedding-based paraphrase search, and bursts on the subject.
    - A daily sweep finds review bombs (Poisson bursts, polarity shifts), lockstep rings and shared infrastructure, keeps a Beta reputation per contributor, and re-weights records. Suspicious records lose ranking weight and subjects show an "unusual activity" notice instead of being silently edited.
 
@@ -119,6 +119,9 @@ pnpm dev
 | --- | --- |
 | `DATABASE_URL`, `DATABASE_URL_UNPOOLED` | Neon (injected by the Vercel Neon integration) |
 | `AFTERTASTE_HASH_SALT` | Salt for IP hashes and challenge signatures |
+| `AI_GATEWAY_API_KEY` | Optional locally (Vercel uses OIDC): Jev decisions and paraphrase embeddings |
+| `GROQ_API_KEY` | Optional: Llama Prompt Guard 2 prompt-injection classifier |
+| `OPENAI_API_KEY` | Optional: OpenAI moderation (abuse scores) |
 | `INKBOX_AGENT_HANDLE`, `INKBOX_API_KEY` | Optional: the server's Inkbox identity, for `verify_agent_identity` |
 | `DEMO_INKBOX_HANDLE`, `DEMO_INKBOX_API_KEY` | Optional, demo script only (`.env.inkbox`): the demo agent's Inkbox identity |
 

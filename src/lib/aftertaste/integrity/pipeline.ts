@@ -1,11 +1,11 @@
-// Per-submission integrity assessment: content judges, network signals, paraphrase search, contributor
+// Per-submission integrity assessment: content classifiers, network signals, paraphrase search, contributor
 // trust and active anomalies on the subject, combined into holds, rejections and a ranking weight.
 import { sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { screenings } from "@/db/schema";
 import type { Submission } from "../contracts";
 import { recordPolarity, recordWeight } from "./behavior";
-import { defaultProviders, screenContent, type ContentScreening, type LayerResult, type Providers } from "./judges";
+import { defaultProviders, screenContent, type ContentScreening, type LayerResult, type Providers } from "./classifiers";
 import { NETWORK_HOLD, type RequestFingerprint } from "./network";
 import { assessNetwork, recordRequestSignal, type NetworkAssessment } from "./network-db";
 import type { Question } from "./rubric";

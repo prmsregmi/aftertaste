@@ -8,7 +8,7 @@ import type { Submission } from "./contracts";
 import * as inkbox from "./inkbox";
 import { evaluateSubmission, type Status } from "./evaluate";
 import { newId, sha256 } from "./ids";
-import { screenContent } from "./integrity/judges";
+import { screenContent } from "./integrity/classifiers";
 import { NETWORK_BLOCK_REGISTRATION, type RequestFingerprint } from "./integrity/network";
 import { assessNetwork, recordRequestSignal } from "./integrity/network-db";
 import {
@@ -313,7 +313,7 @@ export async function submitExperience(input: Submission, actor: Actor) {
     }
   }
 
-  // Integrity layers: content judges, network signals, paraphrase search, trust and subject anomalies.
+  // Integrity layers: content classifiers, network signals, paraphrase search, trust and subject anomalies.
   const integrityInput: IntegrityInput = {
     submission: redacted,
     subjectSlug: subjectSlug(redacted.subject),
