@@ -957,7 +957,8 @@ export async function rescreenPending(limit = 25) {
       and(
         eq(experiences.status, "pending_review"),
         sql`'screening_incomplete' = any(${experiences.reasonCodes})`,
-        gt(experiences.createdAt, new Date(Date.now() - 3 * 86_400_000)),
+        // A week and a day, so records held while the weekly screening budget was spent still get screened.
+        gt(experiences.createdAt, new Date(Date.now() - 8 * 86_400_000)),
       ),
     )
     .limit(limit);
