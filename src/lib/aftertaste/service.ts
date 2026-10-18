@@ -9,6 +9,7 @@ import * as inkbox from "./inkbox";
 import { evaluateSubmission, type Status } from "./evaluate";
 import { GLOBAL_REQUESTS_PER_HOUR, nextUtcMidnight, SEARCH_ALLOWANCE, searchAllowanceFor, TOKEN_REQUESTS_PER_HOUR } from "./allowance";
 import { newId, sha256 } from "./ids";
+import { screenContent } from "./integrity/classifiers";
 import { NETWORK_BLOCK_REGISTRATION, type RequestFingerprint } from "./integrity/network";
 import { assessNetwork, recordRequestSignal } from "./integrity/network-db";
 import {
@@ -16,7 +17,7 @@ import {
   CONTENT_MESSAGES,
   recordAssessment,
   SCREENING_INCOMPLETE,
-  screenWithinBudget,
+  consumeScreeningBudget,
   type IntegrityInput,
 } from "./integrity/pipeline";
 import { activeAnomalies, detectSubjectBursts } from "./integrity/sweep";
@@ -274,6 +275,14 @@ export async function submitExperience(input: Submission, actor: Actor) {
   if ((await recentCount(key, new Date(Date.now() - 3600_000))) >= limit) {
     throw new AftertasteError("rate_limited", `Submission limit reached (${limit}/hour for this identity).`);
   }
+  // Accepted submissions always go through the screening models, so the screening budget decides acceptance.
+  const budget = await consumeScreeningBudget();
+  if (budget !== "ok") {
+    throw new AftertasteError(
+      "rate_limited",
+      `Aftertaste is at its screening limit for this ${budget}. Nothing was stored; retry after the ${budget === "hour" ? "top of the hour" : "week resets on Monday (UTC)"}.`,
+    );
+  }
 
   const evaluation = evaluateSubmission(input);
   const { redacted } = evaluation;
@@ -324,11 +333,10 @@ export async function submitExperience(input: Submission, actor: Actor) {
     ipHash: actor.ipHash,
     fingerprint: actor.fingerprint ?? null,
   };
-  const integrity = status === "rejected" ? null : await assessSubmission(integrityInput);
-  if (integrity) {
-    for (const r of integrity.rejects) hold(r.code, r.message, "rejected");
-    for (const h of integrity.holds) hold(h.code, h.message);
-  }
+  // Rule findings never skip the models: every stored record is screened, and both sets of findings count.
+  const integrity = await assessSubmission(integrityInput);
+  for (const r of integrity.rejects) hold(r.code, r.message, "rejected");
+  for (const h of integrity.holds) hold(h.code, h.message);
 
   if (status !== "rejected" && !actor.contributorId) {
     hold(
@@ -343,16 +351,14 @@ export async function submitExperience(input: Submission, actor: Actor) {
     reasonText: messages.join(" ") || null,
     actor,
     requestId,
-    integrity: integrity
-      ? {
-          weight: integrity.weight,
-          riskScore: integrity.contentRisk,
-          screenedAt: integrity.screened ? new Date() : null,
-          embedding: integrity.embedding,
-        }
-      : undefined,
+    integrity: {
+      weight: integrity.weight,
+      riskScore: integrity.contentRisk,
+      screenedAt: integrity.screened ? new Date() : null,
+      embedding: integrity.embedding,
+    },
   });
-  if (integrity) await recordAssessment(id, integrityInput, integrity);
+  await recordAssessment(id, integrityInput, integrity);
 
   console.log(
     JSON.stringify({
@@ -362,8 +368,8 @@ export async function submitExperience(input: Submission, actor: Actor) {
       status,
       reasonCodes,
       registered: !!actor.contributorId,
-      contentRisk: integrity?.contentRisk ?? null,
-      networkRisk: integrity?.network?.risk ?? null,
+      contentRisk: integrity.contentRisk,
+      networkRisk: integrity.network?.risk ?? null,
     }),
   );
   if (status === "published") refreshPublicPages();
@@ -964,7 +970,8 @@ export async function rescreenPending(limit = 25) {
     .limit(limit);
   const outcomes: Record<string, Status | "still_incomplete"> = {};
   for (const { e, s } of rows) {
-    const result = await screenWithinBudget(submissionFromRow(e, s));
+    if ((await consumeScreeningBudget()) !== "ok") break;
+    const result = await screenContent(submissionFromRow(e, s));
     if (result.layers.length) {
       await db.insert(screenings).values(
         result.layers.map((l) => ({ experienceId: e.id, layer: l.layer, model: l.model, result: l.result as object, latencyMs: l.latencyMs })),

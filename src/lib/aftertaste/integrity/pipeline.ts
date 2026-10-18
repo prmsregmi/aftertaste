@@ -83,17 +83,19 @@ async function nearestParaphrase(embedding: number[], input: IntegrityInput) {
   );
 }
 
-// Paid screening calls (Jev, Prompt Guard, moderation, embeddings) are capped per UTC hour and per ISO
-// week so an attack can't drain the model budget. The defaults are production sizing, at a few dollars a
-// week at current prices; AFTERTASTE_SCREENING_PER_HOUR / _PER_WEEK lower them for a demo deployment.
+// Every accepted submission is screened by the models; the only gate is whether to accept it at all.
+// Paid screening is capped per UTC hour and per ISO week so an attack can't drain the model budget. The
+// defaults are production sizing, at a few dollars a week at current prices; AFTERTASTE_SCREENING_PER_HOUR
+// and _PER_WEEK lower them for a demo deployment. Over the cap, submissions are refused, not stored.
 export const SCREENING_BUDGET = {
   perHour: Number(process.env.AFTERTASTE_SCREENING_PER_HOUR) || 2000,
   perWeek: Number(process.env.AFTERTASTE_SCREENING_PER_WEEK) || 50000,
 };
 
-async function consumeScreeningBudget() {
+export async function consumeScreeningBudget(): Promise<"ok" | "hour" | "week"> {
   const now = new Date();
   const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - ((now.getUTCDay() + 6) % 7)));
+  const week = monday.toISOString().slice(0, 10);
   const bump = async (key: string, day: string, cap: number) => {
     const { rows } = await getDb().execute(sql`
       insert into search_usage as u (submitter_key, day, count) values (${key}, ${day}::date, 1)
@@ -101,28 +103,9 @@ async function consumeScreeningBudget() {
       returning count`);
     return rows.length > 0;
   };
-  const today = now.toISOString().slice(0, 10);
-  return (
-    (await bump(`screen-hour:${now.toISOString().slice(0, 13)}`, today, SCREENING_BUDGET.perHour)) &&
-    (await bump(`screen-week:${monday.toISOString().slice(0, 10)}`, monday.toISOString().slice(0, 10), SCREENING_BUDGET.perWeek))
-  );
-}
-
-// Over budget, the record is treated as unscreened: held as screening_incomplete and re-screened by the
-// sweep once budget is available, never published unscreened.
-export async function screenWithinBudget(submission: Submission, providers: Providers = defaultProviders()) {
-  const paid = Boolean(providers.decide || providers.detectInjection || providers.moderate || providers.embed);
-  if (paid && !(await consumeScreeningBudget())) {
-    return {
-      configured: true,
-      complete: false,
-      probabilities: null,
-      decision: null,
-      embedding: null,
-      layers: [{ layer: "budget", model: "", result: { error: "screening budget exhausted" }, latencyMs: 0 }],
-    } satisfies ContentScreening;
-  }
-  return screenContent(submission, providers);
+  if (!(await bump(`screen-week:${week}`, week, SCREENING_BUDGET.perWeek))) return "week";
+  if (!(await bump(`screen-hour:${now.toISOString().slice(0, 13)}`, now.toISOString().slice(0, 10), SCREENING_BUDGET.perHour))) return "hour";
+  return "ok";
 }
 
 export async function assessSubmission(input: IntegrityInput, providers: Providers = defaultProviders()) {
@@ -131,7 +114,7 @@ export async function assessSubmission(input: IntegrityInput, providers: Provide
   const { submission } = input;
 
   const [content, network, trust, anomalies] = await Promise.all([
-    screenWithinBudget(submission, providers),
+    screenContent(submission, providers),
     input.fingerprint
       ? assessNetwork({
           action: "submit",
