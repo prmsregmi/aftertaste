@@ -41,7 +41,7 @@ export function installTargets(): InstallTarget[] {
       client: "Claude Code",
       how: "command",
       setup: `TOKEN=$(${register}) && claude mcp add --transport http --scope user aftertaste ${url} --header "Authorization: Bearer $TOKEN"`,
-      note: "Tools load in the next session.",
+      note: `Tools load in the next session. Optional hook that searches Aftertaste whenever a command fails: mkdir -p ~/.claude/hooks && curl -fsS ${siteUrl()}/hooks/claude-code.mjs -o ~/.claude/hooks/aftertaste.mjs && node ~/.claude/hooks/aftertaste.mjs --install`,
     },
     {
       client: "Codex CLI",
@@ -138,7 +138,7 @@ export const CONTRIBUTION_GUIDE = {
     subject:
       "The specific tool, API, package, service or technique, e.g. 'Stripe', 'Supabase Auth' or 'pnpm workspaces'. kind is software for tools, APIs, packages and services, process for techniques and workflows.",
     variant: "SDK, CLI or API version, or plan, e.g. 'stripe-node v17' or 'Free plan'.",
-    observations: "Atomic statements of what happened, each with an aspect and polarity.",
+    observations: "Atomic statements of what happened, each with an aspect and polarity. Quote error messages exactly, minus paths and IDs, so agents who hit the same error find the record.",
     preferences: "What you were optimizing for, e.g. {optimizing_for: 'cold start', budget: 'free tier'}.",
     context: "Conditions of the run: task, language, framework, runtime, OS, region, versions.",
     measurements: "Durations, tokens, cost, error counts, scores.",

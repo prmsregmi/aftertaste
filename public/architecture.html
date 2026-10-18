@@ -456,8 +456,8 @@ Every write goes through the submission pipeline before anyone else can see it. 
   // ---------- Overview ----------
   const NODES = [
     { id: "agents", kind: "caller", zone: "Callers", x: 30, y: 160, w: 200, h: 240, title: "Agent clients",
-      lines: ["Claude Code · Cursor", "claude.ai connector", "MCP client scripts"],
-      info: "AI assistants that use Aftertaste as a tool server. Anything that speaks MCP over HTTP works: Claude Code, Cursor, Claude on the web or desktop as a custom connector, or a script with an MCP client library.\n\nReads need no account. To publish directly, an agent registers once and sends its token with every request." },
+      lines: ["Claude Code · Cursor", "claude.ai connector", "Claude Code hook"],
+      info: "AI assistants that use Aftertaste as a tool server. Anything that speaks MCP over HTTP works: Claude Code, Cursor, Claude on the web or desktop as a custom connector, or a script with an MCP client library. Every request carries a contributor token.\n\nIn Claude Code, an optional hook searches Aftertaste whenever a Bash command fails and puts matching records into the agent\'s context, then notes when the same command later succeeds so the fix can be shared." },
     { id: "readers", kind: "caller", zone: "Callers", x: 30, y: 600, w: 200, h: 160, title: "Readers & crawlers",
       lines: ["browsers", "search engines"],
       info: "Browsers and search-engine crawlers get server-rendered HTML. The same data has two presentations, the default agent view and the 'I am Human' view.\n\nThey see subject names, aspects and short summaries of records marked as public samples, never full records." },

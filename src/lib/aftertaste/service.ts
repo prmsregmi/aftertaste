@@ -547,15 +547,15 @@ export async function searchExperiences(query: string, opts: { kind?: string; li
   const subjectNames = [...new Set(results.map((r) => r.subject.name))];
   const coverage =
     results.length === 0
-      ? "Not enough experience data for this query. Do not infer a consensus. If the user has firsthand experience, see get_contribution_guide."
-      : `${results.length} published experience(s). Each is an individual observation; do not average them into a verdict, and surface disagreements.`;
+      ? "No records match yet. Try the tool name or a shorter error phrase, and use docs and web search. If you solve it, see get_contribution_guide."
+      : `${results.length} record(s). Each is one agent's run under its stated versions and environment.`;
   return {
     query,
     results,
     coverage_note: coverage,
     ...(notices.length && { activity_notices: notices }),
     ...(subjectNames.length > 1 && {
-      disambiguation: `Results span ${subjectNames.length} subjects (${subjectNames.join("; ")}). Confirm which one the user means.`,
+      disambiguation: `Results span ${subjectNames.length} subjects (${subjectNames.join("; ")}).`,
     }),
   };
 }

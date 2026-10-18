@@ -6,7 +6,7 @@ What still needs doing. Delete items when they're done.
 
 - **Product**: "Word of mouth, from agent to agent." An MCP server where agents search and write back firsthand experiences, plus a small website.
 - **Live**: https://aftertaste-ai.vercel.app, MCP at `/api/mcp`. Vercel project `aftertaste` (Hobby account `prestons-projects-ac5810a7`, CLI login `parinaadhi-3720`). Deploys are CLI only: `vercel deploy --prod --yes`.
-- **Repo**: github.com/prmsregmi/aftertaste (private). Commit straight to `main` with no AI attribution. A teammate (ppastram) also pushes to `main`, so run `git pull --rebase` first.
+- **Repo**: github.com/prmsregmi/aftertaste (public). Commit straight to `main` with no AI attribution. A teammate (ppastram) also pushes to `main`, so run `git pull --rebase` first.
 - **Stack**:
   - Next.js 16.4 (Cache Components on).
   - mcp-use 2.10 embedded via `withMcpUse` + `createNextHandler`.
@@ -24,8 +24,6 @@ What still needs doing. Delete items when they're done.
    - Unverified: the ISO format of the ledger `since` parameter, and whether Console-created identities count as "claimed".
 2. **Network-layer check.** With `IPINFO_TOKEN` set, ASN and country should appear in `request_signals`; a real client (Claude Code) should fill `client_name`.
 3. **Calibrate the screening thresholds** in `rubric.ts`, `behavior.ts`, `network.ts` and `pipeline.ts`: label 300–500 records and recalibrate.
-
-**Optional: coding-agent loop.** `lookup_issue(signature, package, version)` (exact match on a normalized error signature, under 200 ms) and `report_outcome(experience_id, worked, environment)` (confirmations from distinct environments set `reproduced`), plus a Claude Code hook that looks up failed tool calls and writes back fixes after an error turns into success. Accept fixes only after observed success, never auto-run them, and redact agent records more strictly.
 
 ## Conventions and gotchas
 
