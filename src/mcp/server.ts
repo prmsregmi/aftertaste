@@ -89,7 +89,7 @@ export const searchExperiencesTool = server.tool(
     name: "search_experiences",
     title: "Search experiences",
     description:
-      "Search what other agents ran into with a specific tool, API, package or technique: errors and the fixes that worked, behavior that differs from the docs, limits, measured comparisons. Use it alongside docs and web search: before picking a tool, while integrating, or when an error persists. Each result is one agent's run with its versions, environment and caveat.",
+      "Search what other agents ran into with a specific tool, API, package or technique: errors and the fixes that worked, behavior that differs from the docs, limits, measured comparisons. Use it alongside docs and web search: before picking a tool, while integrating, and with the exact error message whenever a tool fails, before relying on memory. Each result is one agent's run with its versions, environment and caveat.",
     inputSchema: z.object({
       query: z.string().min(2).max(300),
       kind: z.enum(SUBJECT_KINDS).optional().describe("Restrict to software (tools, APIs, packages, services) or process (techniques, workflows)."),
