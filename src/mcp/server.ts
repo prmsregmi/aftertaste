@@ -3,8 +3,8 @@ import { error, MCPServer, text } from "mcp-use";
 import { z } from "zod";
 import { SUBJECT_KINDS, submissionSchema } from "@/lib/aftertaste/contracts";
 import { searchOutputSchema } from "./output-schemas";
-import { headerSetOf, uaFamilyOf } from "@/lib/aftertaste/integrity/network";
-import { allowanceExhausted, SEARCH_ALLOWANCE } from "@/lib/aftertaste/allowance";
+import { fingerprintOf } from "@/lib/aftertaste/integrity/network";
+import { allowanceExhausted } from "@/lib/aftertaste/allowance";
 import { CONTRIBUTION_GUIDE, SERVER_INSTRUCTIONS, siteUrl } from "@/lib/aftertaste/guide";
 import {
   type Actor,
@@ -14,10 +14,9 @@ import {
   getExperience,
   getSubmissionStatus,
   hashIp,
-  registerContributor,
   searchExperiences,
   submitExperience,
-  useSearchAllowance,
+  consumeSearchAllowance,
   verifyAgentIdentity,
 } from "@/lib/aftertaste/service";
 
@@ -39,15 +38,13 @@ type Ctx = {
   client?: { info?(): { name?: string; version?: string } };
 };
 
-// Anonymous by default; a valid bearer token attaches a contributor identity. An unrecognized
-// token degrades to anonymous (with a warning) instead of a 401, which some clients treat as an OAuth prompt.
-async function actorOf(ctx: Ctx): Promise<Actor & { invalidToken: boolean }> {
-  // Platform-provided IP only; client-supplied forwarding headers are spoofable. Missing IPs share one bucket.
+// The route has already rejected calls without a valid token, so every caller here is a contributor.
+async function actorOf(ctx: Ctx): Promise<Actor> {
+  // Platform-provided IP only; client-supplied forwarding headers are spoofable.
   const ip = ctx.request && ipAddress(ctx.request.raw);
   const token = /^Bearer\s+(\S+)$/i.exec(ctx.request?.header("authorization") ?? "")?.[1];
   const contributor = token ? await authenticate(token) : null;
   const raw = ctx.request?.raw;
-  const info = ctx.client?.info?.() ?? {};
   return {
     contributorId: contributor?.id ?? null,
     contributorLabel: contributor?.label ?? null,
@@ -55,19 +52,7 @@ async function actorOf(ctx: Ctx): Promise<Actor & { invalidToken: boolean }> {
     contributorCreatedAt: contributor?.createdAt ?? null,
     ipHash: hashIp(ip || "unknown"),
     ipKnown: Boolean(ip),
-    invalidToken: Boolean(token && !contributor),
-    // Self-reported client facts are only compared with each other, never trusted alone.
-    fingerprint: raw
-      ? {
-          ip: ip || null,
-          country: raw.headers.get("x-vercel-ip-country"),
-          ja4: raw.headers.get("x-vercel-ja4-digest"),
-          headerHash: headerSetOf(raw.headers),
-          uaFamily: uaFamilyOf(raw.headers.get("user-agent")),
-          clientName: info.name?.slice(0, 80) ?? null,
-          clientVersion: info.version?.slice(0, 40) ?? null,
-        }
-      : null,
+    fingerprint: raw ? fingerprintOf(raw.headers, ip || null, ctx.client?.info?.() ?? {}) : null,
   };
 }
 
@@ -113,9 +98,9 @@ export const searchExperiencesTool = server.tool(
     annotations: READ,
   },
   async ({ query, kind, limit }, ctx) => {
-    const allowance = await useSearchAllowance(await actorOf(ctx));
+    const allowance = await consumeSearchAllowance(await actorOf(ctx));
     if (!allowance.allowed) {
-      const exhausted = allowanceExhausted(allowance.limit, allowance.resetsAt, allowance.pooled);
+      const exhausted = allowanceExhausted(allowance.limit, allowance.resetsAt);
       return {
         isError: true,
         content: [{ type: "text", text: JSON.stringify(exhausted, null, 2) }],
@@ -123,16 +108,8 @@ export const searchExperiencesTool = server.tool(
       };
     }
     const data = {
-      ...(await searchExperiences(query, {
-        kind,
-        limit: allowance.reduced ? Math.min(limit ?? SEARCH_ALLOWANCE.reducedResults, SEARCH_ALLOWANCE.reducedResults) : limit,
-      })),
-      search_allowance: {
-        remaining: allowance.remaining,
-        daily_limit: allowance.limit,
-        resets_at: allowance.resetsAt,
-        ...(allowance.reduced && { reduced_results: true }),
-      },
+      ...(await searchExperiences(query, { kind, limit })),
+      search_allowance: { remaining: allowance.remaining, daily_limit: allowance.limit, resets_at: allowance.resetsAt },
     };
     return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }], structuredContent: data };
   },
@@ -163,11 +140,7 @@ server.tool(
     run(async () => {
       const actor = await actorOf(ctx);
       const result = await submitExperience(input, actor);
-      return {
-        ...result,
-        identity: actor.contributorId ? `registered contributor ${actor.contributorId}` : "anonymous",
-        ...(actor.invalidToken && { warning: "Your bearer token was not recognized, so this was submitted anonymously." }),
-      };
+      return { ...result, identity: `contributor ${actor.contributorId}` };
     }),
 );
 
@@ -176,7 +149,7 @@ server.tool(
     name: "get_submission_status",
     title: "Submission status",
     description:
-      "Return the moderation status of a submission by ID, with reason codes and an explanation. Unpublished submissions are visible only to the identity (token or network) that submitted them.",
+      "Return the moderation status of a submission by ID, with reason codes and an explanation. Unpublished submissions are visible only to the contributor that submitted them.",
     inputSchema: z.object({ id: z.string().min(4).max(40) }),
     annotations: READ,
   },
@@ -185,28 +158,9 @@ server.tool(
 
 server.tool(
   {
-    name: "register_contributor",
-    title: "Register contributor",
-    description:
-      "Create a pseudonymous contributor identity and receive a revocable bearer token (shown once). Store it in your MCP client configuration as the header 'Authorization: Bearer <token>', not in chat or public files. Registered submissions that pass automated checks publish without waiting for review. Optionally call verify_agent_identity afterwards to add a verified-agent badge. Identity is not verification: claims stay labeled self-reported.",
-    inputSchema: z.object({
-      label: z.string().min(2).max(60).describe("Public pseudonym, e.g. 'rider-assistant-7'. Do not use a real name."),
-      kind: z.enum(["agent", "person"]),
-    }),
-    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
-  },
-  async ({ label, kind }, ctx) =>
-    run(async () => ({
-      ...(await registerContributor(label, kind, await actorOf(ctx))),
-      next_step: `Reconnect with header 'Authorization: Bearer <token>' to ${siteUrl()}/api/mcp, then call get_identity_status.`,
-    })),
-);
-
-server.tool(
-  {
     name: "get_identity_status",
     title: "Identity status",
-    description: "Report whether this connection is anonymous or a registered contributor.",
+    description: "Report this connection's contributor identity and whether it carries a verified-agent badge.",
     inputSchema: z.object({}),
     annotations: READ,
   },
@@ -214,15 +168,10 @@ server.tool(
     run(async () => {
       const actor = await actorOf(ctx);
       return {
-        identity: actor.contributorId ? "registered" : "anonymous",
         contributor_id: actor.contributorId,
         label: actor.contributorLabel,
         verified_agent: actor.inkboxHandle ? `@${actor.inkboxHandle} (Inkbox identity verified)` : null,
-        token_recognized: !actor.invalidToken,
-        network_identified: actor.ipKnown,
-        effect: actor.contributorId
-          ? "Submissions that pass automated checks publish immediately."
-          : "Submissions wait in the review queue.",
+        effect: "Submissions that pass automated checks publish immediately.",
       };
     }),
 );

@@ -7,11 +7,11 @@ import { contributors, experiences, flags, reviewEvents, screenings, subjects } 
 import type { Submission } from "./contracts";
 import * as inkbox from "./inkbox";
 import { evaluateSubmission, type Status } from "./evaluate";
-import { nextUtcMidnight, SEARCH_ALLOWANCE, searchAllowanceFor } from "./allowance";
+import { GLOBAL_REQUESTS_PER_HOUR, nextUtcMidnight, SEARCH_ALLOWANCE, searchAllowanceFor } from "./allowance";
 import { newId, sha256 } from "./ids";
 import { screenContent } from "./integrity/classifiers";
-import { isPlatform, NETWORK_BLOCK_REGISTRATION, type RequestFingerprint } from "./integrity/network";
-import { assessNetwork, classifyIp, ipv6BlockHashOf, recordRequestSignal } from "./integrity/network-db";
+import { NETWORK_BLOCK_REGISTRATION, type RequestFingerprint } from "./integrity/network";
+import { assessNetwork, recordRequestSignal } from "./integrity/network-db";
 import {
   assessSubmission,
   CONTENT_MESSAGES,
@@ -445,33 +445,27 @@ async function creditedContributions(key: string) {
   return rows[0]?.credited ?? 0;
 }
 
-// Counts one search against the caller's UTC day. A blocked search is not counted. Callers without a
-// token on Claude.ai or ChatGPT egress share one pool per platform, since those connectors can't send a
-// token and an IP quota would throttle all their users together; past the pool's limit their results
-// are trimmed, and past the ceiling they are blocked.
-export async function useSearchAllowance(actor: Actor) {
-  const network = actor.contributorId ? null : await classifyIp(actor.fingerprint?.ip ?? null);
-  const pooled = network !== null && isPlatform(network);
-  const block = actor.contributorId || pooled ? null : ipv6BlockHashOf(actor.fingerprint?.ip ?? null);
-  const key = pooled ? `pool:${network}` : block ? `block:${block}` : submitterKey(actor);
-  const limit = pooled
-    ? SEARCH_ALLOWANCE.platformPool
-    : searchAllowanceFor(Boolean(actor.contributorId), await creditedContributions(submitterKey(actor)));
-  const ceiling = pooled ? limit * SEARCH_ALLOWANCE.poolCeilingFactor : limit;
+// Counts one search against the contributor's UTC day. A blocked search is not counted.
+export async function consumeSearchAllowance(actor: Actor) {
+  const key = submitterKey(actor);
+  const limit = searchAllowanceFor(await creditedContributions(key));
   const { rows } = await getDb().execute<{ count: number }>(sql`
     insert into search_usage as u (submitter_key, day, count)
     values (${key}, (now() at time zone 'utc')::date, 1)
-    on conflict (submitter_key, day) do update set count = u.count + 1 where u.count < ${ceiling}
+    on conflict (submitter_key, day) do update set count = u.count + 1 where u.count < ${limit}
     returning count`);
-  const used = rows[0]?.count ?? ceiling;
-  return {
-    allowed: rows.length > 0,
-    pooled,
-    reduced: rows.length > 0 && used > limit,
-    limit,
-    remaining: Math.max(limit - used, 0),
-    resetsAt: nextUtcMidnight(),
-  };
+  const used = rows[0]?.count ?? limit;
+  return { allowed: rows.length > 0, limit, remaining: Math.max(limit - used, 0), resetsAt: nextUtcMidnight() };
+}
+
+// Counts one MCP request against the service-wide hourly ceiling; false once it is reached.
+export async function consumeGlobalRequest() {
+  const { rows } = await getDb().execute(sql`
+    insert into search_usage as u (submitter_key, day, count)
+    values (${`global:${new Date().toISOString().slice(0, 13)}`}, (now() at time zone 'utc')::date, 1)
+    on conflict (submitter_key, day) do update set count = u.count + 1 where u.count < ${GLOBAL_REQUESTS_PER_HOUR}
+    returning count`);
+  return rows.length > 0;
 }
 
 // Relevance = share of query terms present in the record + how much of the subject name appears in the query.
@@ -666,10 +660,13 @@ export async function registerContributor(label: string, kind: "agent" | "person
   if (network && network.risk >= NETWORK_BLOCK_REGISTRATION) {
     throw new AftertasteError(
       "rate_limited",
-      "Registration from this network is limited right now. Retry later, or submit anonymously for review.",
+      "Registration from this network is limited right now. Retry later.",
     );
   }
   const id = newId("ctr");
+  // A static, non-expiring bearer token (the API-key model), not OAuth with refresh. OAuth refresh fails
+  // often in agent clients, and this token never does. A leaked token stays valid until revoked, so it is
+  // stored only as a hash, revocable, and unlocks nothing personal. Production path in DECISIONS.md.
   const token = `aft_${randomBytes(24).toString("base64url")}`;
   await db.insert(contributors).values({ id, label, kind, tokenHash: sha256(token), createdIpHash: actor.ipHash });
   return { contributor_id: id, label, token };

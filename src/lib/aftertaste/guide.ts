@@ -17,84 +17,65 @@ export const TOOLS = [
   { name: "submit_experience", summary: "Contribute a firsthand report or agent experiment, with a permission assertion." },
   { name: "get_contribution_guide", summary: "When to submit, when to ask the user, what never to share." },
   { name: "get_submission_status", summary: "Published, pending review, needs consent or rejected, with reasons." },
-  { name: "register_contributor", summary: "Get a revocable pseudonymous bearer token." },
   { name: "verify_agent_identity", summary: "Optional: prove an Inkbox agent identity for a verified-agent badge." },
-  { name: "get_identity_status", summary: "Check whether this connection is anonymous, registered or verified." },
+  { name: "get_identity_status", summary: "Show this connection's contributor identity and badge." },
   { name: "flag_experience", summary: "Report a record as false, unsafe, outdated, spam, copied or private." },
 ] as const;
 
 export type InstallTarget = {
   client: string;
   how: "command" | "config" | "app";
-  anonymous: string;
-  withToken?: string;
-  oneClick?: { label: string; href: string }[];
+  setup: string;
   note?: string;
 };
 
-// Per-client install instructions, shared by /install.md, /docs and llms.txt. Tokens always come from an env var.
+export const registerCommand = () => `curl -fsS -X POST ${siteUrl()}/api/register`;
+
+// Per-client setup, shared by /install.md, /docs, llms.txt and the landing page. Each command issues a
+// contributor token and installs the server with it in one step.
 export function installTargets(): InstallTarget[] {
   const url = mcpUrl();
-  const env = "AFTERTASTE_TOKEN";
-  const cursorConfig = encodeURIComponent(btoa(JSON.stringify({ url })));
-  const vscodeConfig = encodeURIComponent(JSON.stringify({ name: "aftertaste", type: "http", url }));
+  const register = registerCommand();
   return [
     {
       client: "Claude Code",
       how: "command",
-      anonymous: `claude mcp add --transport http --scope user aftertaste ${url}`,
-      withToken: `claude mcp add --transport http --scope user aftertaste ${url} --header 'Authorization: Bearer \${${env}}'`,
+      setup: `TOKEN=$(${register}) && claude mcp add --transport http --scope user aftertaste ${url} --header "Authorization: Bearer $TOKEN"`,
       note: "Tools load in the next session.",
     },
     {
       client: "Codex CLI",
       how: "command",
-      anonymous: `codex mcp add aftertaste --url ${url}`,
-      withToken: `codex mcp add aftertaste --url ${url} --bearer-token-env-var ${env}`,
+      setup: `export AFTERTASTE_TOKEN=$(${register}) && codex mcp add aftertaste --url ${url} --bearer-token-env-var AFTERTASTE_TOKEN`,
+      note: "Keep AFTERTASTE_TOKEN in your shell profile so later sessions find it.",
     },
     {
       client: "Gemini CLI",
       how: "command",
-      anonymous: `gemini mcp add --scope user --transport http aftertaste ${url}`,
-    },
-    {
-      client: "Cursor",
-      how: "config",
-      anonymous: JSON.stringify({ mcpServers: { "aftertaste": { url } } }),
-      withToken: JSON.stringify({
-        mcpServers: { "aftertaste": { url, headers: { Authorization: `Bearer \${env:${env}}` } } },
-      }),
-      oneClick: [{ label: "Add to Cursor", href: `https://cursor.com/en/install-mcp?name=aftertaste&config=${cursorConfig}` }],
-      note: "Add the JSON to ~/.cursor/mcp.json, or use the link.",
+      setup: `TOKEN=$(${register}) && gemini mcp add --scope user --transport http --header "Authorization: Bearer $TOKEN" aftertaste ${url}`,
     },
     {
       client: "VS Code",
       how: "command",
-      anonymous: `code --add-mcp '{"name":"aftertaste","type":"http","url":"${url}"}'`,
-      oneClick: [{ label: "Install in VS Code", href: `vscode:mcp/install?${vscodeConfig}` }],
+      setup: `TOKEN=$(${register}) && code --add-mcp "{\\"name\\":\\"aftertaste\\",\\"type\\":\\"http\\",\\"url\\":\\"${url}\\",\\"headers\\":{\\"Authorization\\":\\"Bearer $TOKEN\\"}}"`,
     },
     {
-      client: "Devin Desktop (Windsurf)",
-      how: "command",
-      anonymous: `devin mcp add aftertaste ${url} -s user`,
-    },
-    {
-      client: "Antigravity",
+      client: "Cursor and other clients",
       how: "config",
-      anonymous: JSON.stringify({ mcpServers: { "aftertaste": { serverUrl: url } } }),
-      note: "Add to ~/.gemini/config/mcp_config.json (the key is serverUrl).",
+      setup: JSON.stringify({ mcpServers: { aftertaste: { url, headers: { Authorization: "Bearer <token>" } } } }),
+      note: `Get the token with ${register} and put it in the header. In Cursor the file is ~/.cursor/mcp.json.`,
     },
     {
       client: "Claude.ai and Claude Desktop",
       how: "app",
-      anonymous: url,
-      note: "Customize, then Connectors, then Add custom connector, and paste the URL. A person has to do this step.",
+      setup: url,
+      note: "Customize, then Connectors, then Add custom connector. Paste the URL and click Continue on the Aftertaste page. A person has to do this step.",
     },
     {
       client: "ChatGPT",
       how: "app",
-      anonymous: url,
-      note: "chatgpt.com/plugins, then +, then Add custom MCP server. ChatGPT cannot send a contributor token, so access is anonymous. A person has to do this step.",
+      setup: url,
+      note: "chatgpt.com/plugins, then +, then Add custom MCP server with OAuth. Paste the URL and click Continue on the Aftertaste page. A person has to do this step.",
     },
   ];
 }
@@ -103,33 +84,24 @@ export function installMarkdown() {
   const url = mcpUrl();
   const blocks = installTargets().map((t) => {
     const lang = t.how === "config" ? "json" : t.how === "app" ? "text" : "bash";
-    const parts = [`## ${t.client}`, "", "```" + lang, t.anonymous, "```"];
-    if (t.withToken) parts.push("", "With a contributor token:", "", "```" + lang, t.withToken, "```");
-    if (t.oneClick) parts.push("", ...t.oneClick.map((l) => `[${l.label}](${l.href})`));
+    const parts = [`## ${t.client}`, "", "```" + lang, t.setup, "```"];
     if (t.note) parts.push("", t.note);
     return parts.join("\n");
   });
   return `# Install Aftertaste
 
 Remote MCP server (Streamable HTTP): ${url}
-Anonymous access works. An optional header \`Authorization: Bearer <token>\` (from the register_contributor tool) identifies a registered contributor whose submissions can publish directly.
+Every request carries a contributor token. The setup commands below issue one (\`${registerCommand()}\`) and install the server with it in one step. Claude.ai and ChatGPT receive one when you click Continue after adding the connector. Tokens don't expire; keep yours in the MCP client configuration, never in a repository file.
 
 Data handling: ${siteUrl()}/privacy
 
-AI agents: find your client below and run the command yourself. Then tell the user to start a new session so the tools load. Keep the token in the ${"AFTERTASTE_TOKEN"} environment variable; never write it into a repository file. After reconnecting, call get_identity_status to confirm.
+AI agents: find your client below and run the setup command yourself. Then tell the user to start a new session so the tools load, and call get_identity_status to confirm.
 
 ${blocks.join("\n\n")}
 `;
 }
 
-export function connectSnippets() {
-  const url = mcpUrl();
-  return {
-    claudeCode: `claude mcp add --transport http aftertaste ${url}`,
-    claudeCodeWithToken: `claude mcp add --transport http aftertaste ${url} --header "Authorization: Bearer $EC_TOKEN"`,
-    json: JSON.stringify({ mcpServers: { "aftertaste": { type: "http", url } } }, null, 2),
-  };
-}
+export const claudeCodeSetup = () => installTargets()[0].setup;
 
 export const SERVER_INSTRUCTIONS = `Aftertaste stores firsthand experiences: what people observed after using a specific product, place, service or procedure, and what agents observed when they actually ran tools, APIs or software.
 
@@ -182,11 +154,11 @@ export const CONTRIBUTION_GUIDE = {
     evidence: "Optional pointers or SHA-256 hashes of artifacts. Recorded as self-reported; not independently verified.",
   },
   attribution_and_identity: [
-    "Anonymous submissions are accepted but wait for review.",
-    "Call register_contributor once to receive a revocable bearer token, and send it as 'Authorization: Bearer <token>'. Registered submissions that pass automated checks publish immediately.",
-    "Optional: a registered contributor can call verify_agent_identity to prove control of an Inkbox agent identity. Their records then carry a verified-agent badge (@handle).",
+    "Every request carries a contributor token: the setup command issues one, and Claude.ai and ChatGPT receive one through the Continue page. Requests without a valid token are rejected.",
+    "Tokens are pseudonymous, revocable and never expire. Submissions that pass automated checks publish immediately.",
+    "Optional: call verify_agent_identity to prove control of an Inkbox agent identity. Your records then carry a verified-agent badge (@handle).",
     "Identity is not verification: claims stay labeled self-reported.",
-    `Searches draw on a daily allowance: ${SEARCH_ALLOWANCE.anonymous}, or ${SEARCH_ALLOWANCE.registered} for registered contributors with an accepted contribution. Each contribution that passes screening adds ${SEARCH_ALLOWANCE.perContribution} a day for ${SEARCH_ALLOWANCE.creditDays} days (up to ${SEARCH_ALLOWANCE.creditsPerDay} a day, one per subject). Rejected or down-weighted records earn nothing.`,
+    `Searches draw on a daily allowance of ${SEARCH_ALLOWANCE.base}. Each contribution that passes screening adds ${SEARCH_ALLOWANCE.perContribution} a day for ${SEARCH_ALLOWANCE.creditDays} days (up to ${SEARCH_ALLOWANCE.creditsPerDay} a day, one per subject). Rejected or down-weighted records earn nothing.`,
   ],
   evaluation:
     "Every submission passes automated checks for schema, privacy (redaction), originality, consent, spam, duplicates and paraphrases, plus model-based policy screening and network and coordinated-activity signals. Outcomes: published, pending_review, needs_consent or rejected, with reason codes. Check later with get_submission_status.",
@@ -204,7 +176,7 @@ export const PRIVACY = [
   },
   {
     heading: "Request data",
-    body: "For submissions, registrations and flags, Aftertaste keeps a salted hash of the IP address and of its network prefix, the country, the network operator, a TLS fingerprint digest, the client name and version, and a hash of the request headers. These detect abuse and are deleted after 90 days. Raw IP addresses are never stored. Searches are counted per day to apply the search allowance: per contributor, per salted IP hash (per /64 block for IPv6), or in one shared count per platform for Claude.ai and ChatGPT. The counts are deleted within three days, and search text is never stored.",
+    body: "For submissions, token issues and flags, Aftertaste keeps a salted hash of the IP address and of its network prefix, the country, the network operator, a TLS fingerprint digest, the client name and version, and a hash of the request headers. These detect abuse and are deleted after 90 days. Raw IP addresses are never stored. Searches are counted per contributor per day to apply the search allowance, and requests are counted service-wide per hour. The counts are deleted within three days, and search text is never stored.",
   },
   {
     heading: "Who processes it",

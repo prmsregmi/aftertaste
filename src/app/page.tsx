@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { InlineCode, PromptNote } from "@/components/copy-button";
-import { connectSnippets, mcpUrl } from "@/lib/aftertaste/guide";
+import { claudeCodeSetup, mcpUrl } from "@/lib/aftertaste/guide";
 import { cn } from "@/lib/utils";
 
 const link = "underline decoration-border decoration-1 underline-offset-[0.2em] hover:decoration-foreground";
@@ -10,7 +10,6 @@ function assistantPrompt(url: string) {
 }
 
 export default function Home() {
-  const snippets = connectSnippets();
   return (
     <main>
       {/* Agent presentation (default) */}
@@ -35,7 +34,7 @@ export default function Home() {
 
         <div className="mt-[1.4em] grid gap-2">
           <InlineCode value={mcpUrl()} />
-          <InlineCode value={snippets.claudeCode} />
+          <InlineCode value={claudeCodeSetup()} />
           <p className="mt-1">
             <a href="/install.md" className={link}>
               Other clients

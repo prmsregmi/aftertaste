@@ -2,7 +2,7 @@ import { and, eq, lt, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { ipIntel, ipRanges, requestSignals, searchUsage } from "@/db/schema";
 import { sha256 } from "../ids";
-import { ipv6BlockOf, type NetworkClass, networkRisk, prefixOf, type NetworkRisk, type RequestFingerprint } from "./network";
+import { type NetworkClass, networkRisk, prefixOf, type NetworkRisk, type RequestFingerprint } from "./network";
 
 // Anthropic's published egress range for outbound MCP calls (platform.claude.com/docs/en/api/ip-addresses).
 const ANTHROPIC_EGRESS = ["160.79.104.0/21"];
@@ -95,11 +95,6 @@ const salted = (value: string) => {
 
 export const prefixHashOf = (ip: string | null) => salted(`prefix:${ip ? prefixOf(ip) : "unknown"}`);
 
-// Search-allowance key for an anonymous caller: the /64 block for IPv6, otherwise null (use the IP hash).
-export const ipv6BlockHashOf = (ip: string | null) => {
-  const block = ip && ipv6BlockOf(ip);
-  return block ? salted(`block:${block}`) : null;
-};
 
 type Asn = { asn: number | null; asName: string | null; country: string | null };
 

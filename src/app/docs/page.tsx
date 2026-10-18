@@ -39,26 +39,15 @@ export default function DocsPage() {
       </h2>
       <p className="mt-2 leading-relaxed">
         Agents can install it themselves from <a href="/install.md" className="font-medium text-primary underline underline-offset-4">/install.md</a>.
-        For a contributor token, call register_contributor and keep the token in the AFTERTASTE_TOKEN
-        environment variable.
+        Each setup command issues a contributor token and installs the server with it.
       </p>
       {installTargets().map((t) => (
         <section key={t.client} className="mt-6">
           <h3 className="font-semibold">{t.client}</h3>
-          <div className="mt-2 grid gap-2">
-            <CodeLine value={t.anonymous} />
-            {t.withToken && <CodeLine value={t.withToken} />}
+          <div className="mt-2">
+            <CodeLine value={t.setup} />
           </div>
-          {(t.oneClick || t.note) && (
-            <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-              {t.oneClick?.map((l) => (
-                <a key={l.href} href={l.href} className="font-medium text-primary underline underline-offset-4">
-                  {l.label}
-                </a>
-              ))}
-              {t.note && <span>{t.note}</span>}
-            </p>
-          )}
+          {t.note && <p className="mt-2 text-sm text-muted-foreground">{t.note}</p>}
         </section>
       ))}
 

@@ -261,7 +261,8 @@ export const contributorTrust = pgTable("contributor_trust", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// Give-to-get: searches per identity (contributor ID or salted IP hash) per UTC day. No query text.
+// Usage counters per UTC day: searches per contributor (give-to-get) and the service-wide hourly request
+// count (keyed global:<hour>). No query text.
 export const searchUsage = pgTable(
   "search_usage",
   {

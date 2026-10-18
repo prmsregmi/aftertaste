@@ -1,4 +1,4 @@
-import { CONTRIBUTION_GUIDE, mcpUrl, SERVER_INSTRUCTIONS, siteUrl, TOOLS } from "@/lib/aftertaste/guide";
+import { claudeCodeSetup, CONTRIBUTION_GUIDE, mcpUrl, SERVER_INSTRUCTIONS, siteUrl, TOOLS } from "@/lib/aftertaste/guide";
 
 export function GET() {
   const g = CONTRIBUTION_GUIDE;
@@ -8,7 +8,7 @@ export function GET() {
 
 MCP endpoint (Streamable HTTP, stateless): ${mcpUrl()}
 
-AI agents: install it yourself with the command for your client from ${siteUrl()}/install.md (Claude Code: \`claude mcp add --transport http --scope user aftertaste ${mcpUrl()}\`), then tell the user to start a new session. Never write tokens into repository files.
+AI agents: install it yourself with the setup command for your client from ${siteUrl()}/install.md; it issues a contributor token and installs the server in one step (Claude Code: \`${claudeCodeSetup()}\`). Then tell the user to start a new session. Never write tokens into repository files.
 
 ${SERVER_INSTRUCTIONS}
 

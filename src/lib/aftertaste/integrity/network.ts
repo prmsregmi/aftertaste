@@ -66,22 +66,25 @@ export function headerSetOf(headers: Headers): string {
   return [...headers.keys()].filter((name) => !PLATFORM_HEADER.test(name)).join(",");
 }
 
-// /24 for IPv4 and /48 for IPv6: one household, office or small hosting block.
-// IPv6 /64 block: one subscriber usually owns a whole /64, so per-address keys are trivial to rotate.
-export function ipv6BlockOf(ip: string): string | null {
-  if (!ip.includes(":") || /::ffff:\d+\.\d+\.\d+\.\d+$/i.test(ip)) return null;
-  const [head, tail = ""] = ip.split("::");
-  const left = head ? head.split(":") : [];
-  const right = tail ? tail.split(":") : [];
-  const groups = ip.includes("::")
-    ? [...left, ...Array(Math.max(0, 8 - left.length - right.length)).fill("0"), ...right]
-    : left;
-  return `${groups
-    .slice(0, 4)
-    .map((g) => (parseInt(g || "0", 16) || 0).toString(16))
-    .join(":")}::/64`;
+// Request-level client and network facts, held in memory only. Self-reported client facts are only
+// compared with each other, never trusted alone.
+export function fingerprintOf(
+  headers: Headers,
+  ip: string | null,
+  info: { name?: string; version?: string } = {},
+): RequestFingerprint {
+  return {
+    ip,
+    country: headers.get("x-vercel-ip-country"),
+    ja4: headers.get("x-vercel-ja4-digest"),
+    headerHash: headerSetOf(headers),
+    uaFamily: uaFamilyOf(headers.get("user-agent")),
+    clientName: info.name?.slice(0, 80) ?? null,
+    clientVersion: info.version?.slice(0, 40) ?? null,
+  };
 }
 
+// /24 for IPv4 and /48 for IPv6: one household, office or small hosting block.
 export function prefixOf(ip: string): string {
   if (ip.includes(".") && !ip.includes(":")) {
     const parts = ip.split(".");
@@ -118,7 +121,7 @@ export type NetworkContext = {
 
 export type NetworkRisk = { risk: number; reasons: string[] };
 
-export const isPlatform = (c: NetworkClass) => c === "platform_anthropic" || c === "platform_openai";
+const isPlatform = (c: NetworkClass) => c === "platform_anthropic" || c === "platform_openai";
 
 // Additive score in [0, 100]. Platform egress ranges are shared by every user of that platform, so
 // per-network velocity is not counted against them.

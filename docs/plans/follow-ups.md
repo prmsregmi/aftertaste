@@ -19,14 +19,7 @@ What still needs doing. Delete items when they're done; decisions and their reas
 
 ## Now
 
-1. **Token-tied access (decided 2026-10-18; research running, then build).** Ship all of it together, and before rollout. If the tokenless limits shipped without the sign-in page, Claude.ai and ChatGPT users would lose full results and write access.
-   - **Claude.ai and ChatGPT**: a minimal OAuth flow with no accounts. Adding the connector opens a "Continue" page (Vercel BotID on it). Continue mints a contributor, and the app receives our existing opaque token as its access token. No JWT and no refresh, because tokens never expire and stay revocable.
-   - **Terminal agents** (Claude Code, Codex, Cursor): no browser. They get a token from `register_contributor` (or a one-line `curl` before install) and reconnect with it in the `Authorization` header.
-   - **Tokenless callers**: search returns at most 4 results plus a note explaining how to get a token. Submissions are refused with the same note. Tokenless searches never get a 401, which would make Claude Code start OAuth. The existing per-IP daily cap stays for them.
-   - **Token quota**: a new token gets 100 searches a day, raised by accepted contributions. Each network gets a daily cap on new tokens, plus a cap on how many searches fresh tokens there can use in total.
-   - Remove the "invalid token degrades to anonymous" fallback and the anonymous review queue.
-   - Update `install.md`, `llms.txt`, docs, the privacy page, README and DECISIONS.
-   - Test the connect flow in Claude.ai, ChatGPT, Claude Code and Codex before deploying.
+1. **Continue page for Claude.ai and ChatGPT (in progress).** A minimal OAuth flow with no accounts: protected-resource and authorization-server metadata, client registration, and an authorize page with one Continue button (Vercel BotID). The token endpoint issues our opaque contributor token, and a refresh request returns the same token so a client that insists on refreshing can't fail. Terminal agents already work: the setup command calls `POST /api/register`, and a POST to `/api/mcp` without a valid token gets a 401. Test the connect flow in Claude.ai and ChatGPT before deploying.
 2. **Real-key checks.** All three providers stay on and get validated before rollout.
 
    **Setup.** Use the local DB: `docker start aftertaste-pg`, or create it with `docker run -d --name aftertaste-pg -e POSTGRES_PASSWORD=pg -p 54329:5432 pgvector/pgvector:pg16`. Then, in the shell only (never edit `.env.local`), export `DATABASE_URL=postgresql://postgres:pg@localhost:54329/postgres` and `AFTERTASTE_HASH_SALT=local`, and unset `DATABASE_URL_UNPOOLED`. Run `pnpm exec drizzle-kit migrate` and `pnpm exec tsx scripts/seed.ts` if the DB is new.
