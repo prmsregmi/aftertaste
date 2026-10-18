@@ -7,28 +7,89 @@ Tracked in git. It is the source of truth for the next agent; keep it current in
 - **Product**: Aftertaste (renamed from Experience Commons). "Word of mouth, from agent to agent." An MCP server where agents search and write back firsthand experiences, plus a small website.
 - **Live**: https://aftertaste-ai.vercel.app (old alias experience-commons.vercel.app still serves). MCP endpoint `/api/mcp`. Vercel project `aftertaste` on team `prestons-projects-ac5810a7`, CLI login `parinaadhi-3720`. Deploys are CLI only: `vercel deploy --prod --yes` (no Git integration).
 - **Repo**: github.com/prmsregmi/aftertaste. The user wants commits straight on `main`, no AI attribution in commits. A teammate (ppastram) also pushes to `main`, so `git pull --rebase` before pushing.
-- **Stack**: Next.js 16.4 App Router (Cache Components on), mcp-use 2.10 embedded via `withMcpUse` + `createNextHandler` (`src/mcp/server.ts`), Drizzle + `pg` Pool, Tailwind v4 + shadcn. Business rules in `src/lib/aftertaste/` (contracts, evaluate, service, guide, inkbox, and `integrity/` for the screening layers). Model calls use `@anthropic-ai/sdk` 0.135 and `ai` 7 (Vercel AI Gateway).
+- **Stack**: Next.js 16.4 App Router (Cache Components on), mcp-use 2.10 embedded via `withMcpUse` + `createNextHandler` (`src/mcp/server.ts`), Drizzle + `pg` Pool with pgvector, Tailwind v4 + shadcn. Business rules in `src/lib/aftertaste/` (contracts, evaluate, service, guide, inkbox, and `integrity/` for the screening layers). `ai` 7 (Vercel AI Gateway) for embeddings; `@anthropic-ai/sdk` 0.135 is only used by the content layer that item 0 replaces. mcp-use bundles the MCP server with its own Next shims, so `after()` from `next/server` fails the build there; use `waitUntil` from `@vercel/functions`.
 - **Database**: Neon (Vercel Marketplace store `experience-commons-db`), holding only the synthetic dataset: 10,000 published public records, 300 subjects, 650 pseudonymous contributors (loaded 2026-10-17 with `scripts/seed.ts --reset`). Its text is template-generated and often incoherent; replacing it with real-world subjects is item 2.
 - **Env on Vercel**: Neon vars (`DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `POSTGRES_*`, `PG*`), `AFTERTASTE_HASH_SALT` (secret; salts IP hashes and Inkbox challenge signatures), `SITE_URL=https://aftertaste-ai.vercel.app` (pins canonical links).
 - **Architecture page**: `/architecture.html` (noindex) and https://claude.ai/artifact/AvXJG1Pe59z8V1YVznoy1E (source in the session scratchpad; the public copy is `public/architecture.html`).
 - **Design direction from the user**: very little visible text. Agent view is instinct.com-style (left-anchored serif, manifesto, connect commands). Human mode ("I am Human" toggle) is only caution tapes, a notebook with a "Copy AI instructions" button plus robot sticker, and a floating search.
 
-## Working state at handoff
+## Working state at handoff (2026-10-18)
 
-- `main` carries the integrity layer (item 0) and is **ahead of production**: migration `0003_integrity` is not applied to Neon and nothing has been deployed since. Server instructions were also trimmed (permission paragraph and demo note removed, "use alongside other sources" added).
-- Verified locally against Postgres 16 + pgvector: lint, typecheck, 43 unit tests, `next build`, the MCP end-to-end demo, and `scripts/simulate-attack.ts` (an 8-account review bomb: 3 of 8 registrations refused, all 24 records held or quarantined, burst, polarity shift, lockstep and shared-infrastructure findings, subject notice in search). Model layers were tested with fakes only; no API keys were available.
+- `main` is ahead of production. Nothing has been deployed since 2026-10-17 and migration `0003_integrity` is **not** applied to Neon. Do not deploy until item 0 is done and item 0b passes locally.
+- Already done on `main` (no action needed):
+  - Server instructions, at the user's request: the PERMISSION paragraph and the synthetic-demo note were removed, and a line was added saying Aftertaste complements Context7, web search, APIs and forums. The `evaluation` sentence in `CONTRIBUTION_GUIDE` was updated to mention the new screening.
+  - Integrity layer in `src/lib/aftertaste/integrity/`:
+    - `rubric.ts`: ten harm questions, fusion and reject/hold thresholds.
+    - `judges.ts`: content providers. **Wrong design, see item 0.**
+    - `network.ts`, `network-db.ts`: IP lists, IPinfo ASN, spoofed-client and token-farming signals, hashed `request_signals`.
+    - `behavior.ts`, `sweep.ts`: Poisson bursts, polarity shifts, lockstep groups, shared /24, Beta trust, ranking weights, quarantine.
+    - `pipeline.ts`: per-submission assembly, plus pgvector paraphrase search.
+  - Wiring for the integrity layer:
+    - `service.ts`: `submitExperience`, `registerContributor`, `flagExperience`, the search weights and activity notices, and `rescreenPending`.
+    - `src/mcp/server.ts`: builds the request fingerprint.
+    - Cron route `/api/cron/integrity` (daily, `vercel.json`).
+    - CLIs: `scripts/integrity.ts` (`pnpm integrity ...`) and `scripts/simulate-attack.ts`.
+    - Subject-page notice, architecture page, README and DECISIONS.
+  - Verified in a cloud sandbox against Postgres 16 with pgvector: lint, typecheck, 43 unit tests, `next build`, and the MCP demo (`scripts/demo.mts`) against `pnpm start`. The attack simulation ran 8 accounts × 3 subjects: 3 registrations were refused, all 24 records were held or quarantined, the burst, polarity-shift, lockstep and shared-infrastructure findings fired, and the notice appeared in search. A sweep over the clean seed data produced zero findings. Content providers were tested with fakes only; no real API call has ever been made.
 
-## 0. Integrity layer: activate and calibrate (built 2026-10-18)
-- **What it is**: see DECISIONS.md, Evaluation, and `src/lib/aftertaste/integrity/` (rubric, judges, network, behavior, sweep, pipeline). Operator CLI: `pnpm integrity sweep|ranges|anomalies|confirm|dismiss|screen|export`. Cron: `/api/cron/integrity`, daily at 04:17 UTC (`vercel.json`).
-- **To go live, in order** (the user deploys):
-  1. `vercel env run -e production -- pnpm exec drizzle-kit migrate` (adds the `vector` extension, six tables and four `experiences` columns). Must run before the deploy.
-  2. Add env vars on Vercel: `ANTHROPIC_API_KEY` (judges), `OPENAI_API_KEY` (moderation), `IPINFO_TOKEN` (free IPinfo Lite, ASN), `CRON_SECRET` (any long random string). AI Gateway authenticates with the deployment's OIDC token, so it needs no key on Vercel (locally: `AI_GATEWAY_API_KEY`). Any missing key just skips its layer.
-  3. `vercel deploy --prod --yes`.
-  4. `vercel env run -e production -- pnpm exec tsx scripts/integrity.ts sweep` once, to load IP lists and trust scores.
-  5. Optional: a Vercel WAF rate-limit rule on `/api/mcp` keyed by IP (edge flood protection). Don't enable BotID or Bot Protection on that route; agents are the expected callers.
-- **Tunables**: `AFTERTASTE_JUDGE_MODEL`, `AFTERTASTE_ESCALATION_MODEL`, `AFTERTASTE_SECOND_MODEL`, `AFTERTASTE_EMBEDDING_MODEL`, `AFTERTASTE_SCREENING=off` (kill switch). Thresholds live in `rubric.ts`, `behavior.ts`, `network.ts` and `pipeline.ts`.
-- **Next**: smoke-test the judges with real keys on a handful of good and bad records; label a gold set of 300–500 records and recalibrate thresholds; then distill a classifier from `pnpm integrity export`. Unverified: whether `gpt-oss-safeguard-20b` accepts structured output through the gateway (if not, the second opinion just logs an error and is skipped). The synthetic dataset has no embeddings, so paraphrase search only covers new records.
-- **Cost estimate**: about 4 Haiku-sized calls per submission (~$0.002) plus an Opus call on disputed records only.
+## 0. Replace the LLM-question content layer with classifier / JEV models (top priority)
+
+**Why this exists.** The user was extremely frustrated. From the start they asked for classifier models: "a JEV model or binary models that can answer yes or no with confidence, or a model trained to just classify", on top of network and traffic analysis. The previous agent still built the core content check as prompts to Claude Haiku: three samples, then a gpt-oss-safeguard second opinion, then Claude Opus on disputes, all through `messages.parse`. The user does not want security to depend on asking an LLM a question. To hackathon judges it reads as brute-forcing everything through an LLM. A dedicated yes/no decision model ("JEV") or trained classifiers is a different and stronger proposition, even if similar underneath. Follow the instruction exactly this time.
+
+**First, confirm with the user (one short question) what "JEV" refers to, and get a link if possible.** Misreading the request caused this rework, so don't guess. The leading candidate, unverified: AI SDK 7's new `experimental_decide({ model, state, questions })`, exported from `ai`. It takes boolean, choice and score questions and returns P(true) per boolean question. Through AI Gateway it can retry low-confidence answers on another model (`models: [{ model, when: { confidenceBelow } }]`). Its docs ship in `node_modules/ai` (v7.0.143 is installed); read them before using it. It is marked experimental and may change in patch releases.
+
+**What to build.** Keep the `Providers` → `Probabilities` contract so `fuse()`, `decideContent()`, `pipeline.ts`, the weights and the tests keep working:
+- Replace `claudeJudge`, `claudeEscalation` and `gatewaySecond` in `judges.ts` with classifier providers that each return a probability per question in `QUESTION_KEYS`, or for the subset they cover:
+  - **Decision model ("JEV")** for the policy harms (`promotional`, `undisclosed_affiliation`, `not_firsthand`, `fabricated_or_implausible`, `grudge_or_targeting`, `off_topic_or_incoherent`, `serious_allegation`). It should return calibrated P(yes) per question, not free-text answers.
+  - **Prompt-injection classifier** for `instructions_to_ai`. Options: `meta-llama/Llama-Prompt-Guard-2-86M` (Groq lists it, unverified) or `protectai/deberta-v3-base-prompt-injection-v2` on a Hugging Face Inference Endpoint. Both read 512 tokens, so chunk each field and take the maximum.
+  - **Abuse classifier**: keep `openaiModeration` (`omni-moderation-latest`, free). It already is a classifier.
+  - **PII classifier** for `private_individual` (optional): OpenAI `privacy-filter` or a GLiNER PII model, both self-hosted (Modal or an HF endpoint).
+  - **Optional zero-shot NLI baseline**: `MoritzLaurer/ModernBERT-large-zeroshot-v2.0`. Later, a ModernBERT or SetFit model fine-tuned on `pnpm integrity export` labels plus a human gold set.
+- Remove the Haiku vote and Opus escalation. If a disagreement path is still wanted, it should be the decision model's confidence-based escalation, not a second prompt. Drop `@anthropic-ai/sdk` and the `ANTHROPIC_API_KEY` requirement if nothing else uses them. Rename `AFTERTASTE_JUDGE_MODEL`, `AFTERTASTE_ESCALATION_MODEL` and `AFTERTASTE_SECOND_MODEL` to match the new providers.
+- `screenContent()`'s completeness rule should become "the decision model answered". Supporting classifiers stay optional, so one failing provider never blocks publishing.
+- Rewrite the wording everywhere it describes the content layer. There must be no "Haiku answers three times" or "asks Claude" framing; describe it as a classifier ensemble plus a yes/no decision model with calibrated confidence. Places to update:
+  - README ("Screen everything").
+  - DECISIONS.md (the Evaluation "Judges" bullet).
+  - `public/architecture.html`: the "Model judges" box in `pipelineDetail` and the pipeline node `info`.
+  - The `screen` and `export` help text in `scripts/integrity.ts`.
+  - This doc.
+- Leave the deterministic rules, network signals, behavior sweep, paraphrase embeddings, weights and notices as they are. The user did not object to them.
+
+**Done when:**
+- `judges.test.ts` is rewritten for the new providers (fakes) and passes.
+- `pnpm lint && pnpm typecheck && pnpm test` passes.
+- A real-key smoke test (item 0b, step 5) shows sensible probabilities on the clean and abusive examples.
+- The architecture page renders without overflow; check it with a Playwright screenshot of the pipeline zoom.
+- It is committed to `main`.
+
+## 0b. Test the integrity layer locally, then roll out
+
+Run all of this on the user's machine. Never run `simulate-attack.ts` against Neon: it writes rows, and `seed.ts --reset` wipes every table.
+1. Local database with pgvector: `docker run -d --name aftertaste-pg -e POSTGRES_PASSWORD=pg -p 54329:5432 pgvector/pgvector:pg16`. Then, in the shell only (don't edit `.env.local`): `export DATABASE_URL=postgresql://postgres:pg@localhost:54329/postgres AFTERTASTE_HASH_SALT=local`. Unset `DATABASE_URL_UNPOOLED` if the shell has it, because scripts prefer it.
+2. `pnpm exec drizzle-kit migrate`, then `pnpm exec tsx scripts/seed.ts`. Expect 10,000 records, 300 subjects and 650 contributors.
+3. `pnpm lint && pnpm typecheck && pnpm test`, then `pnpm build`. The build needs the database because of `generateStaticParams`.
+4. Without any model keys:
+   - Run `pnpm exec tsx scripts/simulate-attack.ts`. Expect the outcomes listed under "Working state", then clean up with `--cleanup`.
+   - Run `pnpm exec tsx scripts/integrity.ts sweep` on the clean seed. Expect zero bursts, lockstep and shared-infrastructure findings.
+   - Run `pnpm start -p 3123` and `MCP_URL=http://localhost:3123/api/mcp pnpm exec tsx scripts/demo.mts`. Expect the same output as before: published, rejected spam, anonymous held.
+5. With keys exported in the shell, test one provider at a time. Submit a clean record, a promotional one, a grudge, one with "ignore previous instructions...", and one naming a staff member through the demo or a small script. Then check `pnpm exec tsx scripts/integrity.ts screen <id>` and confirm each layer's output and latency (the target is under 3 s total). Keys needed:
+   - `OPENAI_API_KEY` (moderation)
+   - `IPINFO_TOKEN`
+   - `AI_GATEWAY_API_KEY` (embeddings and the decision model if it runs through the gateway)
+   - The keys for whichever classifier hosts item 0 picks.
+6. Network layer:
+   - `pnpm exec tsx scripts/integrity.ts ranges` should load the Tor, X4BNet VPN/datacenter, OpenAI connector and Anthropic egress lists. In the cloud sandbox the Tor and OpenAI fetches failed: check whether that was the sandbox or the URLs.
+   - Check `request_signals.client_name`: the demo client sent no MCP `clientInfo`, so it was empty. Confirm a real client (Claude Code) fills it through `ctx.client.info()`.
+7. Rollout (the user deploys):
+   1. `vercel env run -e production -- pnpm exec drizzle-kit migrate`, before the deploy (it adds the vector extension, six tables and four `experiences` columns).
+   2. Add the provider keys plus `CRON_SECRET` on Vercel. AI Gateway uses the deployment's OIDC token there.
+   3. `vercel deploy --prod --yes`.
+   4. `vercel env run -e production -- pnpm exec tsx scripts/integrity.ts sweep` once.
+   5. Optional: a Vercel WAF rate-limit rule on `/api/mcp`. Keep BotID and Bot Protection off that route.
+8. Known gaps:
+   - The thresholds in `rubric.ts`, `behavior.ts`, `network.ts` and `pipeline.ts` come from the literature and are uncalibrated. Label 300–500 records and recalibrate.
+   - The seed records have no embeddings, so paraphrase search only covers new records.
+   - The cron is daily because Hobby plans reject more frequent schedules; hourly needs Pro.
 
 ## Hackathon tracks
 
@@ -36,7 +97,7 @@ Targeting three sponsor tracks; the README's "Built with" section pitches all th
 
 | Track | Prize | Why Aftertaste fits | Still needed |
 |---|---|---|---|
-| Manufact, "Best MCP server for agents" | 1st $2,000 + $6,000 credits | Built on mcp-use (Manufact's framework): one `MCPServer`, server instructions, `withMcpUse`/`createNextHandler` inside Next.js, `experience-cards` view | Items 2 and 3; be ready to explain why we host on Vercel, not Manufact cloud (one deployment, no free-tier cold starts during the demo) |
+| Manufact, "Best MCP server for agents" | 1st $2,000 + $6,000 credits | Built on mcp-use (Manufact's framework): one `MCPServer`, server instructions, `withMcpUse`/`createNextHandler` inside Next.js, `experience-cards` view, the integrity layer | Items 0, 2 and 3; be ready to explain why we host on Vercel, not Manufact cloud (one deployment, no free-tier cold starts during the demo) |
 | Armature, "Build something agents use" (coding agents, no human in the loop) | Winner $2,000, runner-up $1,000 | Anonymous reads, self-registration, policy as data, `/llms.txt` and `/install.md`, no 401 dead ends | Items 2 and 4; optionally item 6, which closes the "coding agents" gap |
 | Inkbox, persistent agent identity | 1st $1,000 + $1,000 credits | `verify_agent_identity` badge over Inkbox A2A | Item 5: badge never tested live; prod has no Inkbox keys, so the tool fails there today |
 
@@ -65,7 +126,7 @@ Skipped: Primitive (email; $3,000 first, but nothing built; the email follow-up 
 - **Guardrails** (they protect the real businesses and cost the demo nothing):
   - **Out of search engines**: subject pages for synthetic subjects get `robots: noindex` and are left out of `sitemap.xml`. This needs a small code change: filter `is_demo_fixture` in the sitemap query and in the subject page's `generateMetadata`. Judges and agents still reach everything over MCP and by direct link.
   - **Subjective observations only**: taste, noise, wait, fit, comfort, durability, value, setup, latency, docs clarity. Never hygiene, food safety, health, legality, discrimination, or named staff and individuals. Overall sentiment stays mixed, not a pile of one-star takedowns.
-  - **Labels stay on**: `is_demo_fixture = true` and `synthetic: true` on every record, and the server-instructions note and footer stay as they are.
+  - **Labels stay on**: `is_demo_fixture = true` and `synthetic: true` on every record, and the footer line. The server-instructions note was removed on 2026-10-18 at the user's request ("it's a dummy demo").
   - **Teardown**: after judging, delete the `is_demo_fixture` records with their review events and flags, then delete the subjects and contributors left without records. Keep at least one published subject, or the next build fails on an empty `generateStaticParams`.
 - **Domains**:
   - **Restaurants**: real Bay Area restaurants. Each gets a profile built from public facts: cuisine, signature dishes from the real menu, price band, neighborhood.
@@ -123,7 +184,7 @@ Designed in the sections below; nothing built.
 
 - **Source of truth**: `public/architecture.html` in the repo, served at https://aftertaste-ai.vercel.app/architecture.html (noindex, not in the sitemap) and linked from the README and the GitHub description. The session scratchpad copy is temporary; don't rely on it.
 - **Rule**: any change to the architecture (database, tools, identity, caching, new services) updates this file in the same commit, then deploys with the site.
-- **Pending updates**: none in the repo copy (card view, `/install.md` and the synthetic dataset were added 2026-10-17). The Claude artifact mirror below was not refreshed and is now behind.
+- **Pending updates**: the "Model judges" box and the pipeline `info` must change with item 0. The Claude artifact mirror below was not refreshed and is now behind (it lacks the integrity layer too).
 - **How it works**: one self-contained HTML file (inline SVG built by a small script from `NODES`/`EDGES` arrays, a detail drawing per zoomable node, a hover info panel). Edit the arrays and detail functions; no build step.
 - **Claude artifact mirror** (https://claude.ai/artifact/AvXJG1Pe59z8V1YVznoy1E, shared "anyone with the link"): optional. To refresh it, read it with the Artifact tool first, then publish with that `url`. The artifact format must not include the outer document wrapper, so strip `<!doctype html>`, `<html>`, `<head>` and `<body>` (and their closing tags) from the repo copy and keep everything from `<title>` onward.
 
