@@ -2,11 +2,13 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   cidr,
+  date,
   index,
   integer,
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   real,
   serial,
   text,
@@ -258,6 +260,17 @@ export const contributorTrust = pgTable("contributor_trust", {
   trust: real("trust").notNull().default(0.5),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Give-to-get: searches per identity (contributor ID or salted IP hash) per UTC day. No query text.
+export const searchUsage = pgTable(
+  "search_usage",
+  {
+    submitterKey: text("submitter_key").notNull(),
+    day: date("day").notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.submitterKey, t.day] })],
+);
 
 // Coordinated-activity findings from the sweep: bursts, polarity shifts, lockstep groups, shared infrastructure.
 export const anomalies = pgTable(

@@ -7,10 +7,11 @@ import { contributors, experiences, flags, reviewEvents, screenings, subjects } 
 import type { Submission } from "./contracts";
 import * as inkbox from "./inkbox";
 import { evaluateSubmission, type Status } from "./evaluate";
+import { SEARCH_ALLOWANCE, searchAllowanceFor } from "./allowance";
 import { newId, sha256 } from "./ids";
 import { screenContent } from "./integrity/classifiers";
-import { NETWORK_BLOCK_REGISTRATION, type RequestFingerprint } from "./integrity/network";
-import { assessNetwork, recordRequestSignal } from "./integrity/network-db";
+import { isPlatform, NETWORK_BLOCK_REGISTRATION, type RequestFingerprint } from "./integrity/network";
+import { assessNetwork, classifyIp, recordRequestSignal } from "./integrity/network-db";
 import {
   assessSubmission,
   CONTENT_MESSAGES,
@@ -428,6 +429,28 @@ export function caveatFor(e: {
     notes.push("Observed over a year ago; may be stale.");
   }
   return notes.join(" ");
+}
+
+// Counts one search against the caller's UTC day and returns what's left. Only published records that
+// still carry ranking weight earn credit. Connector users share their platform's egress IPs and can't
+// send a token, so an IP quota would throttle all of them together; they stay unmetered (null) until
+// OAuth gives them an identity.
+export async function useSearchAllowance(actor: Actor) {
+  if (!actor.contributorId && isPlatform(await classifyIp(actor.fingerprint?.ip ?? null))) return null;
+  const key = submitterKey(actor);
+  const { rows } = await getDb().execute<{ used: number; accepted: number }>(sql`
+    with bump as (
+      insert into search_usage (submitter_key, day, count)
+      values (${key}, (now() at time zone 'utc')::date, 1)
+      on conflict (submitter_key, day) do update set count = search_usage.count + 1
+      returning count)
+    select (select count from bump) as used,
+      (select count(*)::int from experiences
+        where submitter_key = ${key} and status = 'published' and integrity_weight > 0
+          and created_at > now() - make_interval(days => ${SEARCH_ALLOWANCE.creditDays})) as accepted`);
+  const { used, accepted } = rows[0];
+  const limit = searchAllowanceFor(Boolean(actor.contributorId), accepted);
+  return { allowed: used <= limit, used, limit, remaining: Math.max(limit - used, 0), accepted };
 }
 
 // Relevance = share of query terms present in the record + how much of the subject name appears in the query.

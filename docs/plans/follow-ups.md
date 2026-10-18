@@ -78,7 +78,7 @@ Run all of this on the user's machine. Never run `simulate-attack.ts` against Ne
    - `pnpm exec tsx scripts/integrity.ts ranges` should load the Tor, X4BNet VPN/datacenter, OpenAI connector and Anthropic egress lists. In the cloud sandbox the Tor and OpenAI fetches failed: check whether that was the sandbox or the URLs.
    - Check `request_signals.client_name`: the e2e client sent no MCP `clientInfo`, so it was empty. Confirm a real client (Claude Code) fills it through `ctx.client.info()`.
 7. Rollout (the user deploys):
-   1. `vercel env run -e production -- pnpm exec drizzle-kit migrate`, immediately followed by step 3. It adds the vector extension, six tables and four `experiences` columns (0003), and renames `is_demo_fixture` to `is_seed` (0004). The build that is live now still reads the old column name, so its record queries fail between this step and the deploy.
+   1. `vercel env run -e production -- pnpm exec drizzle-kit migrate`, immediately followed by step 3. It adds the vector extension, six tables and four `experiences` columns (0003), renames `is_demo_fixture` to `is_seed` (0004), and adds `search_usage` (0005). The build that is live now still reads the old column name, so its record queries fail between this step and the deploy.
    2. Add the provider keys plus `CRON_SECRET` on Vercel. AI Gateway uses the deployment's OIDC token there.
    3. `vercel deploy --prod --yes`.
    4. `vercel env run -e production -- pnpm exec tsx scripts/integrity.ts sweep` once.
@@ -87,6 +87,60 @@ Run all of this on the user's machine. Never run `simulate-attack.ts` against Ne
    - The thresholds in `rubric.ts`, `behavior.ts`, `network.ts` and `pipeline.ts` come from the literature and are uncalibrated. Label 300–500 records and recalibrate.
    - The seed records have no embeddings, so paraphrase search only covers new records.
    - The cron is daily because Hobby plans reject more frequent schedules; hourly needs Pro.
+
+## 0c. Give-to-get search allowance (built 2026-10-18)
+
+- **Rule** (`src/lib/aftertaste/allowance.ts`, `useSearchAllowance` in `service.ts`):
+  - Each UTC day, an anonymous caller gets 20 searches and a registered contributor 50.
+  - Each of the caller's records published in the last 30 days that still has integrity weight above 0 adds 25 searches a day, capped at 500.
+  - Records down-weighted to 0 lose their credit, which removes the payoff for fabricated submissions.
+  - `get_experience` is not metered.
+- **Counting**: the `search_usage` table (migration 0005) holds one row per identity per day: the contributor ID or salted IP hash, and a count. Query text is never stored. The daily sweep deletes rows older than yesterday.
+- **Exhaustion**: a normal result, not an error, with `results: []`. A `coverage_note` states the reset time and how to earn more, warns that rejected or down-weighted records earn nothing, and says not to retry. Every metered response also carries `search_allowance: {remaining, daily_limit}`.
+- **Shared platform egress is unmetered.** Claude.ai and ChatGPT connectors come from shared platform IPs and can't send tokens, so an IP quota would throttle all their users together. Anonymous requests from `platform_anthropic` / `platform_openai` ranges skip the allowance until OAuth (item 9) gives those users an identity. Those IPs can't be spoofed; a spoofed user agent alone doesn't qualify.
+- **Verified locally**:
+  - The 21st search returns the note.
+  - One accepted record raises the limit from 20 to 45, and setting its weight to 0 removes the credit.
+  - An Anthropic egress IP is unmetered and an ordinary IP is metered.
+  - `e2e.mts` still passes.
+- **Open**: tune the numbers with the give-to-get research, which is running; the defaults are starting points.
+
+## Decisions log (to fold into DECISIONS.md later)
+
+The user wants DECISIONS.md to show the engineering. Record each decision here first, then move it into DECISIONS.md with its research and tradeoffs.
+
+**Safety and noise filtering**
+- **Layered, cheapest first.**
+  1. Deterministic rules: redaction, firsthand-only provenance, consent, spam, specificity, duplicates and trigram near-copies.
+  2. Classifiers and the decision model.
+  3. Network signals.
+  4. Paraphrase embeddings.
+  5. Subject-activity holds.
+  6. A daily sweep: Poisson bursts, polarity shifts, lockstep groups, shared /24, Beta trust.
+
+  Each layer catches what the previous one can't. Rules miss reworded spam, classifiers miss coordination, and coordination is only visible across records.
+- **Decision model, not LLM prompts** (2026-10-18). Jev returns native per-question probabilities. A prompted LLM gives self-reported estimates and adds nondeterminism.
+  - Ten narrow yes/no questions follow CheckEval, which found that binary questions agree better than holistic scores.
+  - When an answer falls between 0.3 and 0.7, the gateway reruns the decision on a second vendor's decision model, so one model's blind spot doesn't decide alone.
+  - Jev is pinned to 1.13.0, the stable release with full zero data retention.
+- **Specialists can only raise.** Prompt Guard covers injection and OpenAI moderation covers abuse; each can raise its estimate but never lower Jev's. A specialist that misses therefore costs nothing, and one that catches something counts.
+- **Fail closed on the core, fail open on extras.** A record without a Jev answer is held as `screening_incomplete` and re-screened by the sweep. A failing specialist never blocks publishing. With no decision model configured, every configured classifier must answer; this was a security-review fix.
+- **Reject only near-certain harms; hold the merely likely.** Holding is cheap, and wrongly rejecting a real report is not.
+- **Down-weight and disclose, don't delete.** Following Steam's review-bomb notices and the FTC rule against suppressing negative reviews, suspicious records lose ranking weight and the subject shows a notice.
+- **Agents are expected callers.** Automation and machine-written style are never risk signals, so BotID and CAPTCHA don't apply. Shared platform egress (Claude.ai, ChatGPT) is exempt from per-network velocity.
+- **Evidence from the local run (2026-10-18).**
+  - Attack simulation, 8 accounts × 3 subjects: 3 registrations refused, all 24 records held or quarantined, and the burst, polarity-shift, lockstep and shared-infrastructure findings all fired.
+  - Sweep over the 10,000 clean seed records: zero findings.
+- **Dataset loads never call paid models.** Seeding runs only the deterministic evaluator.
+
+**Access and consent**
+- **Give-to-get search allowance** (user decision 2026-10-18). Anonymous and registered identities get a daily search allowance, and accepted contributions raise it. The user chose this over open reads after being told the risks: it rewards fabricated submissions made to unlock reads, and it ends free anonymous reads. Mitigation: only contributions that pass screening count, and records later down-weighted to zero lose their credit. Implementation and research notes go in item 0c.
+- **Consent-first contribution** (user decision 2026-10-18). Aftertaste doesn't solicit anything; the agent decides what to share and asserts the consent basis. Agents should offer a contribution proactively but send it only with the user's approval, a standing instruction, or an organization policy covering the agent's own work. This came from a real install attempt: an agent read "contribute without being asked" as auto-submission and recommended a search-only install. The user reviews the draft wording.
+- **Privacy page.** It covers what is stored, what is hashed and for how long, which providers process submissions, what is public, and how to get a record removed. It is linked from the server instructions and the install guide.
+
+**Presentation**
+- **No wording that frames the product as unfinished** (user decision 2026-10-18): no demo banner, no demo script names, a neutral `is_seed` column. Generated records still say `synthetic: true` in MCP results; the honesty and legal reasons are under item 2.
+- **Server identity.** The logo is sent in MCP `serverInfo.icons` (SVG plus a 512 px PNG) and listed in `server.json`, so clients and registries show it at install.
 
 ## Hackathon tracks
 

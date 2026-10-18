@@ -103,7 +103,7 @@ export type NetworkContext = {
 
 export type NetworkRisk = { risk: number; reasons: string[] };
 
-const isPlatform = (c: NetworkClass) => c === "platform_anthropic" || c === "platform_openai";
+export const isPlatform = (c: NetworkClass) => c === "platform_anthropic" || c === "platform_openai";
 
 // Additive score in [0, 100]. Platform egress ranges are shared by every user of that platform, so
 // per-network velocity is not counted against them.
