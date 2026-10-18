@@ -689,7 +689,8 @@ export async function createContributor(label: string, kind: "agent" | "person",
   const id = newId("ctr");
   // A static, non-expiring bearer token (the API-key model), not OAuth with refresh. OAuth refresh fails
   // often in agent clients, and this token never does. A leaked token stays valid until revoked, so it is
-  // stored only as a hash, revocable, and unlocks nothing personal. Production path in DECISIONS.md.
+  // stored only as a hash, revocable, and unlocks nothing personal. Production would use short-lived
+  // access tokens with rotating refresh tokens.
   const token = `aft_${randomBytes(24).toString("base64url")}`;
   await getDb().insert(contributors).values({ id, label, kind, tokenHash: sha256(token), createdIpHash: ipHash });
   return { contributor_id: id, label, token };

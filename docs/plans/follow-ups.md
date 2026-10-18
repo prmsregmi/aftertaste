@@ -1,6 +1,6 @@
 # Aftertaste: handoff
 
-What still needs doing. Delete items when they're done; decisions and their reasons go in `DECISIONS.md`, not here.
+What still needs doing. Delete items when they're done.
 
 ## Context
 
