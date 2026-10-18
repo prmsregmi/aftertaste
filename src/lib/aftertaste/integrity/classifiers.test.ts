@@ -125,6 +125,16 @@ describe("screenContent", () => {
     expect(result.layers.filter((l) => (l.result as { error?: string }).error)).toHaveLength(1);
   });
 
+  it("is incomplete without a decision model when a configured classifier fails", async () => {
+    const result = await screenContent(record, {
+      detectInjection: async () => {
+        throw new Error("prompt guard HTTP 400");
+      },
+      moderate: async () => ({ harassment: 0.01 }),
+    });
+    expect(result.complete).toBe(false);
+  });
+
   it("stays complete when only a supporting classifier fails", async () => {
     const result = await screenContent(record, {
       decide: decision(),

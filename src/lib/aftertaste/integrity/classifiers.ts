@@ -201,8 +201,11 @@ export async function screenContent(
 
   const probabilities = fuse({ decision: decision?.probabilities ?? null, injection, moderation });
   // Complete when the decision model answered. A failed supporting classifier is logged but doesn't
-  // hold the record, so one flaky provider can't stop all publishing.
-  const complete = providers.decide ? decision !== null : true;
+  // hold the record, so one flaky provider can't stop all publishing. Without a decision model, every
+  // configured classifier must answer, or a record could publish unscreened.
+  const complete = providers.decide
+    ? decision !== null
+    : (!providers.detectInjection || injection !== null) && (!providers.moderate || moderation !== null);
   return {
     configured,
     complete,
