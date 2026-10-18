@@ -12,6 +12,8 @@ export const SEARCH_ALLOWANCE = {
   creditsPerDay: 3,
   // Claude.ai and ChatGPT callers without a token share their platform's egress IPs; each platform gets one pool.
   platformPool: 5000,
+  // A pool has no per-user identity, so exhausting it trims results instead of blocking every connector user.
+  reducedResults: 3,
 };
 
 export function searchAllowanceFor(registered: boolean, credited: number) {

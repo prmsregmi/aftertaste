@@ -462,7 +462,14 @@ export async function useSearchAllowance(actor: Actor) {
     on conflict (submitter_key, day) do update set count = u.count + 1 where u.count < ${limit}
     returning count`);
   const used = rows[0]?.count ?? limit;
-  return { allowed: rows.length > 0, limit, remaining: Math.max(limit - used, 0), resetsAt: nextUtcMidnight() };
+  const exhausted = rows.length === 0;
+  return {
+    allowed: !exhausted || pooled,
+    reduced: exhausted && pooled,
+    limit,
+    remaining: Math.max(limit - used, 0),
+    resetsAt: nextUtcMidnight(),
+  };
 }
 
 // Relevance = share of query terms present in the record + how much of the subject name appears in the query.

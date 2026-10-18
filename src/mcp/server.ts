@@ -4,7 +4,7 @@ import { z } from "zod";
 import { SUBJECT_KINDS, submissionSchema } from "@/lib/aftertaste/contracts";
 import { searchOutputSchema } from "./output-schemas";
 import { headerSetOf, uaFamilyOf } from "@/lib/aftertaste/integrity/network";
-import { allowanceExhausted } from "@/lib/aftertaste/allowance";
+import { allowanceExhausted, SEARCH_ALLOWANCE } from "@/lib/aftertaste/allowance";
 import { CONTRIBUTION_GUIDE, SERVER_INSTRUCTIONS, siteUrl } from "@/lib/aftertaste/guide";
 import {
   type Actor,
@@ -123,8 +123,16 @@ export const searchExperiencesTool = server.tool(
       };
     }
     const data = {
-      ...(await searchExperiences(query, { kind, limit })),
-      search_allowance: { remaining: allowance.remaining, daily_limit: allowance.limit, resets_at: allowance.resetsAt },
+      ...(await searchExperiences(query, {
+        kind,
+        limit: allowance.reduced ? Math.min(limit ?? SEARCH_ALLOWANCE.reducedResults, SEARCH_ALLOWANCE.reducedResults) : limit,
+      })),
+      search_allowance: {
+        remaining: allowance.remaining,
+        daily_limit: allowance.limit,
+        resets_at: allowance.resetsAt,
+        ...(allowance.reduced && { reduced_results: true }),
+      },
     };
     return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }], structuredContent: data };
   },
