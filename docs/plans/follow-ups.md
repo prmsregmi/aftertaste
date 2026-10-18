@@ -19,9 +19,7 @@ What still needs doing. Delete items when they're done.
 
 ## Remaining
 
-1. **Inkbox verified-agent badge, live test.**
-   - Needs two Inkbox Console identities with agent-scoped keys: the server's (`INKBOX_AGENT_HANDLE` / `INKBOX_API_KEY` on Vercel) and the test agent's (`E2E_INKBOX_HANDLE` / `E2E_INKBOX_API_KEY` in `.env.inkbox`). `pnpm e2e` runs the verification when the test agent's keys are present.
-   - Unverified: the ISO format of the ledger `since` parameter, and whether Console-created identities count as "claimed".
+1. **Inkbox verified-agent badge, live test.** Production has the server identity (`INKBOX_AGENT_HANDLE=preston7`, `INKBOX_API_KEY` set 2026-10-18 from a throwaway key pasted in chat; rotate it) and issues challenges. Still needed: a second identity for the test agent in `.env.inkbox` (`E2E_INKBOX_HANDLE` / `E2E_INKBOX_API_KEY`), then `MCP_URL=https://aftertaste-ai.vercel.app/api/mcp pnpm e2e` and delete its records. Unverified: the ISO format of the ledger `since` parameter, and whether Console-created identities count as "claimed".
 2. **Network-layer check.** With `IPINFO_TOKEN` set, ASN and country should appear in `request_signals`; a real client (Claude Code) should fill `client_name`.
 3. **Calibrate the screening thresholds** in `rubric.ts`, `behavior.ts`, `network.ts` and `pipeline.ts`: label 300–500 records and recalibrate.
 
