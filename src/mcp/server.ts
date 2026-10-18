@@ -115,7 +115,7 @@ export const searchExperiencesTool = server.tool(
   async ({ query, kind, limit }, ctx) => {
     const allowance = await useSearchAllowance(await actorOf(ctx));
     if (!allowance.allowed) {
-      const exhausted = allowanceExhausted(allowance.limit, allowance.resetsAt);
+      const exhausted = allowanceExhausted(allowance.limit, allowance.resetsAt, allowance.pooled);
       return {
         isError: true,
         content: [{ type: "text", text: JSON.stringify(exhausted, null, 2) }],

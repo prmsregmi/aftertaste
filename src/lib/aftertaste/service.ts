@@ -447,7 +447,8 @@ async function creditedContributions(key: string) {
 
 // Counts one search against the caller's UTC day. A blocked search is not counted. Callers without a
 // token on Claude.ai or ChatGPT egress share one pool per platform, since those connectors can't send a
-// token and an IP quota would throttle all their users together.
+// token and an IP quota would throttle all their users together; past the pool's limit their results
+// are trimmed, and past the ceiling they are blocked.
 export async function useSearchAllowance(actor: Actor) {
   const network = actor.contributorId ? null : await classifyIp(actor.fingerprint?.ip ?? null);
   const pooled = network !== null && isPlatform(network);
@@ -456,16 +457,17 @@ export async function useSearchAllowance(actor: Actor) {
   const limit = pooled
     ? SEARCH_ALLOWANCE.platformPool
     : searchAllowanceFor(Boolean(actor.contributorId), await creditedContributions(submitterKey(actor)));
+  const ceiling = pooled ? limit * SEARCH_ALLOWANCE.poolCeilingFactor : limit;
   const { rows } = await getDb().execute<{ count: number }>(sql`
     insert into search_usage as u (submitter_key, day, count)
     values (${key}, (now() at time zone 'utc')::date, 1)
-    on conflict (submitter_key, day) do update set count = u.count + 1 where u.count < ${limit}
+    on conflict (submitter_key, day) do update set count = u.count + 1 where u.count < ${ceiling}
     returning count`);
-  const used = rows[0]?.count ?? limit;
-  const exhausted = rows.length === 0;
+  const used = rows[0]?.count ?? ceiling;
   return {
-    allowed: !exhausted || pooled,
-    reduced: exhausted && pooled,
+    allowed: rows.length > 0,
+    pooled,
+    reduced: rows.length > 0 && used > limit,
     limit,
     remaining: Math.max(limit - used, 0),
     resetsAt: nextUtcMidnight(),
