@@ -19,7 +19,15 @@ What still needs doing. Delete items when they're done; decisions and their reas
 
 ## Now
 
-1. **Real-key checks.** All three providers stay on and get validated before rollout.
+1. **Token-tied access (decided 2026-10-18; research running, then build).** Ship all of it together, and before rollout. If the tokenless limits shipped without the sign-in page, Claude.ai and ChatGPT users would lose full results and write access.
+   - **Claude.ai and ChatGPT**: a minimal OAuth flow with no accounts. Adding the connector opens a "Continue" page (Vercel BotID on it). Continue mints a contributor, and the app receives our existing opaque token as its access token. No JWT and no refresh, because tokens never expire and stay revocable.
+   - **Terminal agents** (Claude Code, Codex, Cursor): no browser. They get a token from `register_contributor` (or a one-line `curl` before install) and reconnect with it in the `Authorization` header.
+   - **Tokenless callers**: search returns at most 4 results plus a note explaining how to get a token. Submissions are refused with the same note. Tokenless searches never get a 401, which would make Claude Code start OAuth. The existing per-IP daily cap stays for them.
+   - **Token quota**: a new token gets 100 searches a day, raised by accepted contributions. Each network gets a daily cap on new tokens, plus a cap on how many searches fresh tokens there can use in total.
+   - Remove the "invalid token degrades to anonymous" fallback and the anonymous review queue.
+   - Update `install.md`, `llms.txt`, docs, the privacy page, README and DECISIONS.
+   - Test the connect flow in Claude.ai, ChatGPT, Claude Code and Codex before deploying.
+2. **Real-key checks.** All three providers stay on and get validated before rollout.
 
    **Setup.** Use the local DB: `docker start aftertaste-pg`, or create it with `docker run -d --name aftertaste-pg -e POSTGRES_PASSWORD=pg -p 54329:5432 pgvector/pgvector:pg16`. Then, in the shell only (never edit `.env.local`), export `DATABASE_URL=postgresql://postgres:pg@localhost:54329/postgres` and `AFTERTASTE_HASH_SALT=local`, and unset `DATABASE_URL_UNPOOLED`. Run `pnpm exec drizzle-kit migrate` and `pnpm exec tsx scripts/seed.ts` if the DB is new.
 
@@ -38,13 +46,13 @@ What still needs doing. Delete items when they're done; decisions and their reas
      - `pnpm exec tsx scripts/integrity.ts ranges` should load the Tor, X4BNet, OpenAI-connector and Anthropic lists; the Tor and OpenAI fetches failed once in a sandbox;
      - with `IPINFO_TOKEN` set, ASN and country should appear in `request_signals`;
      - a real client (Claude Code) should fill `client_name`.
-2. **Rollout** (the user deploys):
+3. **Rollout** (the user deploys):
    1. `vercel env run -e production -- pnpm exec drizzle-kit migrate`, immediately followed by step 3. Migration 0004 renames `is_demo_fixture` to `is_seed`, so the live build's record queries fail until the new deploy lands.
    2. Add `GROQ_API_KEY`, `OPENAI_API_KEY`, `IPINFO_TOKEN` and `CRON_SECRET` on Vercel. AI Gateway uses OIDC there.
    3. `vercel deploy --prod --yes`.
    4. `vercel env run -e production -- pnpm exec tsx scripts/integrity.ts sweep` once.
    5. Optional: a Vercel WAF rate-limit rule on `/api/mcp`. Keep BotID and Bot Protection off that route.
-3. **Known gaps**:
+4. **Known gaps**:
    - The thresholds in `rubric.ts`, `behavior.ts`, `network.ts` and `pipeline.ts` are uncalibrated; label 300–500 records and recalibrate.
    - Seed records have no embeddings, so paraphrase search only covers new records.
    - The cron is daily because Hobby rejects more frequent schedules.
