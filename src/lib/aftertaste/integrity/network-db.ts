@@ -1,6 +1,6 @@
 import { and, eq, lt, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { ipIntel, ipRanges, requestSignals, searchUsage } from "@/db/schema";
+import { ipIntel, ipRanges, requestSignals } from "@/db/schema";
 import { sha256 } from "../ids";
 import { type NetworkClass, networkRisk, prefixOf, type NetworkRisk, type RequestFingerprint } from "./network";
 
@@ -221,5 +221,8 @@ export async function recordRequestSignal(
 export async function pruneRequestSignals() {
   const db = getDb();
   await db.delete(requestSignals).where(lt(requestSignals.createdAt, sql`now() - interval '90 days'`));
-  await db.delete(searchUsage).where(lt(searchUsage.day, sql`(now() at time zone 'utc')::date - 1`));
+  await db.execute(sql`
+    delete from search_usage
+    where (submitter_key not like 'screen-week:%' and day < (now() at time zone 'utc')::date - 1)
+       or (submitter_key like 'screen-week:%' and day < (now() at time zone 'utc')::date - 8)`);
 }

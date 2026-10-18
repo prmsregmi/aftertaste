@@ -29,10 +29,7 @@ What still needs doing. Delete items when they're done; decisions and their reas
    **Setup.** Use the local DB: `docker start aftertaste-pg`, or create it with `docker run -d --name aftertaste-pg -e POSTGRES_PASSWORD=pg -p 54329:5432 pgvector/pgvector:pg16`. Then, in the shell only (never edit `.env.local`), export `DATABASE_URL=postgresql://postgres:pg@localhost:54329/postgres` and `AFTERTASTE_HASH_SALT=local`, and unset `DATABASE_URL_UNPOOLED`. Run `pnpm exec drizzle-kit migrate` and `pnpm exec tsx scripts/seed.ts` if the DB is new.
 
    **Test records.** Submit a clean record, a promotional one, a grudge, one with "ignore previous instructions...", and one naming a staff member. Then inspect each with `pnpm exec tsx scripts/integrity.ts screen <id>`. The target is under 3 s in total.
-   - **Jev**, with `AI_GATEWAY_API_KEY` (in `.env.local`). On 2026-10-18 the gateway accepted the key, but its free tier excludes Jev and `text-embedding-3-small`, so the user needs a small paid credit top-up:
-     - every question gets a probability;
-     - the clean record passes;
-     - a borderline record shows the fallback model in the `decision` layer's `model` field.
+   - **Jev**: validated 2026-10-18 after a $10 credit top-up. The clean record published, the injection was rejected, the staff name was held and the grudge was held. Uncertain records were rerun on the backup model. A full screening takes about 1 second.
    - **Prompt Guard on Groq**: validated 2026-10-18. It returns a bare number, and the injection record scored 0.999 and was rejected while the others scored 0.001 or less, at 100–200 ms each. Still open: one non-English text over 1,500 characters, to see how Groq handles more than 512 tokens.
    - **OpenAI moderation**, with `OPENAI_API_KEY` from the user: the abusive record should raise `harassment_or_hate`.
    - **Network layer**:
@@ -41,7 +38,7 @@ What still needs doing. Delete items when they're done; decisions and their reas
      - a real client (Claude Code) should fill `client_name`.
 3. **Rollout** (the user deploys):
    1. `vercel env run -e production -- pnpm exec drizzle-kit migrate`, immediately followed by step 3. Migration 0004 renames `is_demo_fixture` to `is_seed`, so the live build's record queries fail until the new deploy lands.
-   2. Add `GROQ_API_KEY`, `OPENAI_API_KEY`, `IPINFO_TOKEN` and `CRON_SECRET` on Vercel. AI Gateway uses OIDC there.
+   2. Add `GROQ_API_KEY`, `IPINFO_TOKEN` and `CRON_SECRET` on Vercel (`OPENAI_API_KEY` is optional; moderation stays off without it). AI Gateway uses OIDC there. `AFTERTASTE_SCREENING_PER_HOUR=200` and `AFTERTASTE_SCREENING_PER_WEEK=4000` are already set.
    3. `vercel deploy --prod --yes`.
    4. `vercel env run -e production -- pnpm exec tsx scripts/integrity.ts sweep` once.
    5. Optional: a Vercel WAF rate-limit rule on `/api/mcp`. Keep BotID and Bot Protection off that route.

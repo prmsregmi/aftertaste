@@ -83,13 +83,55 @@ async function nearestParaphrase(embedding: number[], input: IntegrityInput) {
   );
 }
 
+// Paid screening calls (Jev, Prompt Guard, moderation, embeddings) are capped per UTC hour and per ISO
+// week so an attack can't drain the model budget. The defaults are production sizing, at a few dollars a
+// week at current prices; AFTERTASTE_SCREENING_PER_HOUR / _PER_WEEK lower them for a demo deployment.
+export const SCREENING_BUDGET = {
+  perHour: Number(process.env.AFTERTASTE_SCREENING_PER_HOUR) || 2000,
+  perWeek: Number(process.env.AFTERTASTE_SCREENING_PER_WEEK) || 50000,
+};
+
+async function consumeScreeningBudget() {
+  const now = new Date();
+  const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - ((now.getUTCDay() + 6) % 7)));
+  const bump = async (key: string, day: string, cap: number) => {
+    const { rows } = await getDb().execute(sql`
+      insert into search_usage as u (submitter_key, day, count) values (${key}, ${day}::date, 1)
+      on conflict (submitter_key, day) do update set count = u.count + 1 where u.count < ${cap}
+      returning count`);
+    return rows.length > 0;
+  };
+  const today = now.toISOString().slice(0, 10);
+  return (
+    (await bump(`screen-hour:${now.toISOString().slice(0, 13)}`, today, SCREENING_BUDGET.perHour)) &&
+    (await bump(`screen-week:${monday.toISOString().slice(0, 10)}`, monday.toISOString().slice(0, 10), SCREENING_BUDGET.perWeek))
+  );
+}
+
+// Over budget, the record is treated as unscreened: held as screening_incomplete and re-screened by the
+// sweep once budget is available, never published unscreened.
+export async function screenWithinBudget(submission: Submission, providers: Providers = defaultProviders()) {
+  const paid = Boolean(providers.decide || providers.detectInjection || providers.moderate || providers.embed);
+  if (paid && !(await consumeScreeningBudget())) {
+    return {
+      configured: true,
+      complete: false,
+      probabilities: null,
+      decision: null,
+      embedding: null,
+      layers: [{ layer: "budget", model: "", result: { error: "screening budget exhausted" }, latencyMs: 0 }],
+    } satisfies ContentScreening;
+  }
+  return screenContent(submission, providers);
+}
+
 export async function assessSubmission(input: IntegrityInput, providers: Providers = defaultProviders()) {
   const rejects: Finding[] = [];
   const holds: Finding[] = [];
   const { submission } = input;
 
   const [content, network, trust, anomalies] = await Promise.all([
-    screenContent(submission, providers),
+    screenWithinBudget(submission, providers),
     input.fingerprint
       ? assessNetwork({
           action: "submit",

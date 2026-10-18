@@ -9,7 +9,6 @@ import * as inkbox from "./inkbox";
 import { evaluateSubmission, type Status } from "./evaluate";
 import { GLOBAL_REQUESTS_PER_HOUR, nextUtcMidnight, SEARCH_ALLOWANCE, searchAllowanceFor, TOKEN_REQUESTS_PER_HOUR } from "./allowance";
 import { newId, sha256 } from "./ids";
-import { screenContent } from "./integrity/classifiers";
 import { NETWORK_BLOCK_REGISTRATION, type RequestFingerprint } from "./integrity/network";
 import { assessNetwork, recordRequestSignal } from "./integrity/network-db";
 import {
@@ -17,6 +16,7 @@ import {
   CONTENT_MESSAGES,
   recordAssessment,
   SCREENING_INCOMPLETE,
+  screenWithinBudget,
   type IntegrityInput,
 } from "./integrity/pipeline";
 import { activeAnomalies, detectSubjectBursts } from "./integrity/sweep";
@@ -963,7 +963,7 @@ export async function rescreenPending(limit = 25) {
     .limit(limit);
   const outcomes: Record<string, Status | "still_incomplete"> = {};
   for (const { e, s } of rows) {
-    const result = await screenContent(submissionFromRow(e, s));
+    const result = await screenWithinBudget(submissionFromRow(e, s));
     if (result.layers.length) {
       await db.insert(screenings).values(
         result.layers.map((l) => ({ experienceId: e.id, layer: l.layer, model: l.model, result: l.result as object, latencyMs: l.latencyMs })),

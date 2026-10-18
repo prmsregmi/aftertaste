@@ -90,4 +90,4 @@ pnpm db:migrate
 pnpm dev
 ```
 
-Optional keys turn on the model layers: `AI_GATEWAY_API_KEY` (Jev and embeddings), `GROQ_API_KEY` (Prompt Guard 2) and `OPENAI_API_KEY` (moderation). Run `pnpm lint && pnpm typecheck && pnpm test` before committing.
+Optional keys turn on the model layers: `AI_GATEWAY_API_KEY` (Jev and embeddings), `GROQ_API_KEY` (Prompt Guard 2) and `OPENAI_API_KEY` (moderation). `AFTERTASTE_SCREENING_PER_HOUR` and `AFTERTASTE_SCREENING_PER_WEEK` cap paid screening calls (defaults 2,000 and 50,000). Run `pnpm lint && pnpm typecheck && pnpm test` before committing.
