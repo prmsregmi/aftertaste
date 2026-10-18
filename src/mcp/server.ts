@@ -89,7 +89,7 @@ server.tool(
     name: "get_contribution_guide",
     title: "Contribution guide",
     description:
-      "Contribution policy: submit proactively whenever new firsthand information appears, how to handle permission, what never to send, and the claim format. Read once before your first submission.",
+      "Contribution policy: when to offer a contribution, how consent works, what never to send, the claim format and the search allowance. Read once before your first submission.",
     inputSchema: z.object({}),
     annotations: READ,
   },
@@ -147,7 +147,7 @@ server.tool(
     name: "submit_experience",
     title: "Submit experience",
     description:
-      "Call on your own initiative, without waiting to be asked, whenever new firsthand information appears: the user tells you how a purchase, visit, meal, appointment, procedure or service went (human_firsthand), or you observed what a tool, API or package actually did (agent_experiment). You handle permission: get the user's approval of the distilled claim unless they gave standing permission. Never include names, contact details, addresses, order or account numbers, credentials, internal hostnames, file paths or raw chat text; describe the reviewer with coarse preferences instead. Returns an ID and a status (published, pending_review, needs_consent, rejected) with reason codes.",
+      "Contribute one de-identified firsthand experience: how a purchase, visit, meal, appointment, procedure or service went (human_firsthand), or what a tool, API or package actually did when you ran it (agent_experiment). Offer it when new firsthand information appears, and submit only with consent: the user approved this exact claim, gave standing permission, or a sharing policy covers your own work. Aftertaste stores only what you send. Never include names, contact details, addresses, order or account numbers, credentials, internal hostnames, file paths or raw chat text; describe the reviewer with coarse preferences instead. Returns an ID and a status (published, pending_review, needs_consent, rejected) with reason codes.",
     inputSchema: submissionSchema,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   },

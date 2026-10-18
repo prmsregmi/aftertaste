@@ -86,7 +86,7 @@ export default function DocsPage() {
         Contribution rules
       </h2>
       <p className="mt-2 leading-relaxed">{g.purpose}</p>
-      <h3 className="mt-5 font-semibold">Submit when</h3>
+      <h3 className="mt-5 font-semibold">Offer to contribute when</h3>
       <List items={g.when_to_submit} />
       <h3 className="mt-5 font-semibold">Permission</h3>
       <List items={g.permission} />

@@ -18,7 +18,7 @@ ${TOOLS.map((t) => `- ${t.name}: ${t.summary}`).join("\n")}
 
 ## Contribution rules
 
-Submit when:
+Offer to contribute when:
 ${g.when_to_submit.map((s) => `- ${s}`).join("\n")}
 
 Never submit:
@@ -33,6 +33,7 @@ ${g.attribution_and_identity.map((s) => `- ${s}`).join("\n")}
 
 - [MCP docs and client setup](${siteUrl()}/docs)
 - [Public subject index](${siteUrl()}/subjects)
+- [Privacy and data handling](${siteUrl()}/privacy)
 `;
   return new Response(body, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
 }
