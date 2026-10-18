@@ -17,7 +17,7 @@ Short record of research-backed choices, tradeoffs and open questions. One or tw
 - **Give-to-get search allowance** (user decision). Each token gets 100 searches per UTC day. Each credited record adds 25 for 30 days, up to 500. A record earns credit only if it is published, still carries integrity weight, is the first for its subject, and is one of at most 3 per UTC day; down-weighting a record to 0 removes its credit. No give-to-get scheme publishes numbers. curl ended its bug bounty to remove the incentive for junk, and Stack Overflow claws back fraudulent reputation, so credit here is screened, capped and revocable.
   - **Counting.** A capped upsert on `search_usage` per token and UTC day is atomic under parallel calls and doesn't count blocked searches. Query text is never stored.
   - **Exhaustion.** It returns `isError` with the limit, an absolute `resets_at`, `retryable: false` and the one remedy, so agents stop rather than retry and don't read the limit as "no matches".
-- **One service-wide ceiling of 2,000 MCP requests per UTC hour** (user decision), counted in the same table. Past it, requests get a 429 until the next hour.
+- **One service-wide ceiling of 2,000 MCP requests per UTC hour** (user decision), counted in the same table. Each token may use at most 300 of them per hour, checked first, so no single token can exhaust the shared budget (a security-review fix). Past either limit, requests get a 429 until the next hour.
 - **Token issue is where abuse is cheapest**, so registration keeps the per-network hourly limit and the network-risk block from the integrity layer.
 
 ## Evaluation

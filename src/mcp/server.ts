@@ -44,12 +44,13 @@ async function actorOf(ctx: Ctx): Promise<Actor> {
   const ip = ctx.request && ipAddress(ctx.request.raw);
   const token = /^Bearer\s+(\S+)$/i.exec(ctx.request?.header("authorization") ?? "")?.[1];
   const contributor = token ? await authenticate(token) : null;
+  if (!contributor) throw new AftertasteError("unauthorized", "A contributor token is required.");
   const raw = ctx.request?.raw;
   return {
-    contributorId: contributor?.id ?? null,
-    contributorLabel: contributor?.label ?? null,
-    inkboxHandle: contributor?.inkboxHandle ?? null,
-    contributorCreatedAt: contributor?.createdAt ?? null,
+    contributorId: contributor.id,
+    contributorLabel: contributor.label,
+    inkboxHandle: contributor.inkboxHandle,
+    contributorCreatedAt: contributor.createdAt,
     ipHash: hashIp(ip || "unknown"),
     ipKnown: Boolean(ip),
     fingerprint: raw ? fingerprintOf(raw.headers, ip || null, ctx.client?.info?.() ?? {}) : null,

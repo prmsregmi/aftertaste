@@ -10,8 +10,9 @@ export const SEARCH_ALLOWANCE = {
   creditsPerDay: 3,
 };
 
-// One ceiling for the whole service, per UTC hour, across every token.
+// One ceiling for the whole service per UTC hour, and each token's share of it.
 export const GLOBAL_REQUESTS_PER_HOUR = 2000;
+export const TOKEN_REQUESTS_PER_HOUR = 300;
 
 export const searchAllowanceFor = (credited: number) =>
   Math.min(SEARCH_ALLOWANCE.base + SEARCH_ALLOWANCE.perContribution * credited, SEARCH_ALLOWANCE.max);

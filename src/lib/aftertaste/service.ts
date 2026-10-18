@@ -7,7 +7,7 @@ import { contributors, experiences, flags, reviewEvents, screenings, subjects } 
 import type { Submission } from "./contracts";
 import * as inkbox from "./inkbox";
 import { evaluateSubmission, type Status } from "./evaluate";
-import { GLOBAL_REQUESTS_PER_HOUR, nextUtcMidnight, SEARCH_ALLOWANCE, searchAllowanceFor } from "./allowance";
+import { GLOBAL_REQUESTS_PER_HOUR, nextUtcMidnight, SEARCH_ALLOWANCE, searchAllowanceFor, TOKEN_REQUESTS_PER_HOUR } from "./allowance";
 import { newId, sha256 } from "./ids";
 import { screenContent } from "./integrity/classifiers";
 import { NETWORK_BLOCK_REGISTRATION, type RequestFingerprint } from "./integrity/network";
@@ -458,14 +458,21 @@ export async function consumeSearchAllowance(actor: Actor) {
   return { allowed: rows.length > 0, limit, remaining: Math.max(limit - used, 0), resetsAt: nextUtcMidnight() };
 }
 
-// Counts one MCP request against the service-wide hourly ceiling; false once it is reached.
-export async function consumeGlobalRequest() {
-  const { rows } = await getDb().execute(sql`
-    insert into search_usage as u (submitter_key, day, count)
-    values (${`global:${new Date().toISOString().slice(0, 13)}`}, (now() at time zone 'utc')::date, 1)
-    on conflict (submitter_key, day) do update set count = u.count + 1 where u.count < ${GLOBAL_REQUESTS_PER_HOUR}
-    returning count`);
-  return rows.length > 0;
+// Counts one MCP request against the token's hourly share, then the service-wide hourly ceiling, so no
+// single token can exhaust the shared budget. A request refused by the first limit isn't counted twice.
+export async function consumeRequestBudget(contributorId: string): Promise<"ok" | "token_limit" | "global_limit"> {
+  const hour = new Date().toISOString().slice(0, 13);
+  const bump = async (key: string, cap: number) => {
+    const { rows } = await getDb().execute(sql`
+      insert into search_usage as u (submitter_key, day, count)
+      values (${key}, (now() at time zone 'utc')::date, 1)
+      on conflict (submitter_key, day) do update set count = u.count + 1 where u.count < ${cap}
+      returning count`);
+    return rows.length > 0;
+  };
+  if (!(await bump(`req:${contributorId}:${hour}`, TOKEN_REQUESTS_PER_HOUR))) return "token_limit";
+  if (!(await bump(`global:${hour}`, GLOBAL_REQUESTS_PER_HOUR))) return "global_limit";
+  return "ok";
 }
 
 // Relevance = share of query terms present in the record + how much of the subject name appears in the query.
@@ -631,7 +638,9 @@ export async function getSubmissionStatus(id: string, actor: Actor) {
   };
 }
 
-export async function registerContributor(label: string, kind: "agent" | "person", actor: Actor) {
+// Registration limits on the requester's own network: an hourly cap and the network-risk block. Token
+// issue is the cheapest Sybil attack, so this is where network signals bite hardest.
+export async function checkRegistration(actor: Actor) {
   const db = getDb();
   const [recent] = await db
     .select({ n: count() })
@@ -642,7 +651,6 @@ export async function registerContributor(label: string, kind: "agent" | "person
   if (recent.n >= LIMITS.registrationsPerHour) {
     throw new AftertasteError("rate_limited", "Too many registrations from this network in the last hour.");
   }
-  // Token farming is the cheapest Sybil attack, so registration is where network signals bite hardest.
   const signalInput = {
     action: "register" as const,
     submitterKey: submitterKey(actor),
@@ -663,13 +671,31 @@ export async function registerContributor(label: string, kind: "agent" | "person
       "Registration from this network is limited right now. Retry later.",
     );
   }
+}
+
+export async function createContributor(label: string, kind: "agent" | "person", ipHash: string) {
   const id = newId("ctr");
   // A static, non-expiring bearer token (the API-key model), not OAuth with refresh. OAuth refresh fails
   // often in agent clients, and this token never does. A leaked token stays valid until revoked, so it is
   // stored only as a hash, revocable, and unlocks nothing personal. Production path in DECISIONS.md.
   const token = `aft_${randomBytes(24).toString("base64url")}`;
-  await db.insert(contributors).values({ id, label, kind, tokenHash: sha256(token), createdIpHash: actor.ipHash });
+  await getDb().insert(contributors).values({ id, label, kind, tokenHash: sha256(token), createdIpHash: ipHash });
   return { contributor_id: id, label, token };
+}
+
+export async function registerContributor(label: string, kind: "agent" | "person", actor: Actor) {
+  await checkRegistration(actor);
+  return createContributor(label, kind, actor.ipHash);
+}
+
+// True the first time a key is claimed today; used to make OAuth codes single-use.
+export async function claimOnce(key: string) {
+  const { rows } = await getDb().execute(sql`
+    insert into search_usage as u (submitter_key, day, count)
+    values (${key}, (now() at time zone 'utc')::date, 1)
+    on conflict (submitter_key, day) do nothing
+    returning count`);
+  return rows.length > 0;
 }
 
 export async function authenticate(token: string) {
