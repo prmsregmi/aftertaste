@@ -40,8 +40,8 @@ export function installTargets(): InstallTarget[] {
     {
       client: "Claude Code",
       how: "command",
-      setup: `TOKEN=$(${register}) && claude mcp add --transport http --scope user aftertaste ${url} --header "Authorization: Bearer $TOKEN"`,
-      note: `Tools load in the next session. Optional hook that searches Aftertaste whenever a command fails: mkdir -p ~/.claude/hooks && curl -fsS ${siteUrl()}/hooks/claude-code.mjs -o ~/.claude/hooks/aftertaste.mjs && node ~/.claude/hooks/aftertaste.mjs --install`,
+      setup: `TOKEN=$(${register}) && claude mcp add --transport http --scope user aftertaste ${url} --header "Authorization: Bearer $TOKEN" && mkdir -p ~/.claude/hooks && curl -fsS ${siteUrl()}/hooks/claude-code.mjs -o ~/.claude/hooks/aftertaste.mjs && node ~/.claude/hooks/aftertaste.mjs --install`,
+      note: "Also installs a hook that searches Aftertaste whenever a Bash command fails. Tools and the hook load in the next session.",
     },
     {
       client: "Codex CLI",
