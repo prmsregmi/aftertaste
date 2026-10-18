@@ -25,6 +25,10 @@ const server = new MCPServer({
   version: "0.2.0",
   basePath: "/api/mcp",
   websiteUrl: siteUrl(),
+  icons: [
+    { src: `${siteUrl()}/logo.svg`, mimeType: "image/svg+xml", sizes: ["any"] },
+    { src: `${siteUrl()}/logo.png`, mimeType: "image/png", sizes: ["512x512"] },
+  ],
   instructions: SERVER_INSTRUCTIONS,
 });
 
