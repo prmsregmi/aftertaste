@@ -19,12 +19,11 @@ What still needs doing. Delete items when they're done.
 
 ## Remaining
 
-1. **Load the demo dataset.** About 2,100 generated records on 59 developer tools replace `data/experiences.jsonl`; every summary ends with `[SAMPLE FOR DEMO]`. Validate with `submissionSchema` + `evaluateSubmission`, then run `scripts/seed.ts --reset` in production, which embeds the records through AI Gateway.
-2. **Inkbox verified-agent badge, live test.**
+1. **Inkbox verified-agent badge, live test.**
    - Needs two Inkbox Console identities with agent-scoped keys: the server's (`INKBOX_AGENT_HANDLE` / `INKBOX_API_KEY` on Vercel) and the test agent's (`E2E_INKBOX_HANDLE` / `E2E_INKBOX_API_KEY` in `.env.inkbox`). `pnpm e2e` runs the verification when the test agent's keys are present.
    - Unverified: the ISO format of the ledger `since` parameter, and whether Console-created identities count as "claimed".
-3. **Network-layer check.** With `IPINFO_TOKEN` set, ASN and country should appear in `request_signals`; a real client (Claude Code) should fill `client_name`.
-4. **Calibrate the screening thresholds** in `rubric.ts`, `behavior.ts`, `network.ts` and `pipeline.ts`: label 300–500 records and recalibrate.
+2. **Network-layer check.** With `IPINFO_TOKEN` set, ASN and country should appear in `request_signals`; a real client (Claude Code) should fill `client_name`.
+3. **Calibrate the screening thresholds** in `rubric.ts`, `behavior.ts`, `network.ts` and `pipeline.ts`: label 300–500 records and recalibrate.
 
 **Optional: coding-agent loop.** `lookup_issue(signature, package, version)` (exact match on a normalized error signature, under 200 ms) and `report_outcome(experience_id, worked, environment)` (confirmations from distinct environments set `reproduced`), plus a Claude Code hook that looks up failed tool calls and writes back fixes after an error turns into success. Accept fixes only after observed success, never auto-run them, and redact agent records more strictly.
 
@@ -43,6 +42,6 @@ What still needs doing. Delete items when they're done.
 - **Moderation**: `vercel env run -e production -- pnpm exec tsx scripts/review.ts list|approve|reject|sample|delete <id>`.
 - **End-to-end check**: `MCP_URL=<host>/api/mcp pnpm e2e`. The spam step needs the screening models, because keyword rules no longer reject promotion. Delete its records afterwards.
 - **Screening evaluation**: `DATABASE_URL=<local> pnpm exec dotenv -e .env.local -- tsx scripts/eval-screening.ts data/screening-eval.jsonl`. It calls the paid models (about a cent per run) and never touches the database. Rerun after any change to `rubric.ts`.
-- **Reloading the dataset**: `vercel env run -e production -- pnpm exec tsx scripts/seed.ts --reset` wipes every table, including real contributors.
+- **Reloading the dataset**: `vercel env run -e production -- pnpm exec tsx scripts/seed.ts --reset` wipes every table, including real contributors, then loads `data/experiences.jsonl` (2,145 records on 59 developer tools, each summary ending in `[SAMPLE FOR DEMO]`) and embeds it through AI Gateway.
 - **`vercel env run`** layers `.env.local` over remote vars and misparses arguments containing `=` or bare paths. Always use the `-- pnpm exec ...` form.
 - A leftover `next-server` process can keep port 3123 after `pkill -f "next start"`; kill it by PID before restarting.
