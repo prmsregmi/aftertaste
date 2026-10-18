@@ -47,10 +47,17 @@ Tracked in git. It is the source of truth for the next agent; keep it current in
 - `@anthropic-ai/sdk` and the `ANTHROPIC_API_KEY` / `AFTERTASTE_JUDGE_MODEL` / `AFTERTASTE_SECOND_MODEL` / `AFTERTASTE_ESCALATION_MODEL` variables are gone. The README, DECISIONS, architecture page and CLI help were reworded.
 - Tests: `classifiers.test.ts`, including one through the real `experimental_decide` with `Experimental_DecisionMockModelV4`.
 
-**Still open:**
-1. **AI Gateway billing.** The Vercel team's AI Gateway rejects every request with "AI Gateway requires a valid credit card on file". This blocks Jev and also the paraphrase embeddings that production would use. The user has to add a card in the Vercel dashboard (AI tab).
-2. **Prompt Guard response format.** Groq doesn't document what the model returns. The code expects `choices[0].message.content` to be a number. Probe it once with a real `GROQ_API_KEY`, using one benign string and one attack string; until then a parse failure only skips that layer.
-3. The real-key smoke test in 0b step 5.
+**Remaining checks** (decided 2026-10-18: all three providers stay on, and all are validated before rollout):
+1. **Jev, after the card is added.** The user is adding a card to the Vercel account (Hobby plan; the card only unlocks AI Gateway's free credits). Then run 0b step 5 with `AI_GATEWAY_API_KEY` and confirm three things:
+   - every question gets a probability, and the clean record passes;
+   - a borderline record shows the fallback model in the `decision` layer's `model` field;
+   - latency stays under 3 s.
+2. **Prompt Guard (Groq), validated, not optional.** The user supplies `GROQ_API_KEY`.
+   - Probe once with a benign string and an attack string, and log the raw `choices[0].message`. The code expects a bare number; fix the parser if Groq returns a label or JSON.
+   - Then confirm that "ignore previous instructions..." rejects through `instructions_to_ai`.
+   - Test one non-English record longer than 1,500 characters to see whether Groq errors or truncates past 512 tokens.
+3. **OpenAI moderation.** The user supplies `OPENAI_API_KEY`. Confirm that the abusive example raises `harassment_or_hate`.
+4. **Dataset loads never call paid models.** `scripts/seed.ts` runs only the deterministic `evaluateSubmission`, with no Jev, Groq, OpenAI or embedding calls; item 2's generator must load through it too. Never load demo data through `submit_experience` or `assessSubmission`. For scripts that go through the pipeline (`demo.mts`, `simulate-attack.ts`), set `AFTERTASTE_SCREENING=off` unless you are testing the models.
 
 ## 0b. Test the integrity layer locally, then roll out
 
