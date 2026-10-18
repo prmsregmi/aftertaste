@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { errorSignature, toolOf, workParts } from "../../../public/hooks/claude-code.mjs";
 
-// Runs the hook as Claude Code would, without a token, so it never reaches the network.
+// Runs the hook as Claude Code would, in a throwaway home without a token, so it never reaches the network.
+const home = mkdtempSync(join(tmpdir(), "aftertaste-hook-"));
 const run = (event: object) =>
   execFileSync("node", ["public/hooks/claude-code.mjs"], {
     input: JSON.stringify({ session_id: `test${Math.random()}`.replace(".", ""), tool_name: "Bash", ...event }),
-    env: { ...process.env, HOME: "/nonexistent", AFTERTASTE_TOKEN: "" },
+    env: { ...process.env, HOME: home, AFTERTASTE_TOKEN: "" },
   }).toString();
 
 describe("Claude Code hook", () => {
@@ -18,6 +22,14 @@ describe("Claude Code hook", () => {
       ),
     ).toBe("Error: Cannot find module");
     expect(errorSignature("request 3f9a2c1d8e7b6a50 failed: 401 Unauthorized")).toBe("request failed: 401 Unauthorized");
+  });
+
+  it("never sends secrets or identifiers from the error line", () => {
+    const leaked = errorSignature(
+      "Error: connect failed for postgres://admin:hunter2@db.internal.example.com:5432/app (api_key=sk_live_51HxQ2abcDEF123456 user ops@example.com host 10.0.0.12, token ghp_aB3dE6fG9hJ2kL5mN8pQ1rS4tU7vW0xY)",
+    );
+    for (const secret of ["hunter2", "admin", "internal", "sk_live", "ops@", "10.0.0.12", "ghp_"]) expect(leaked).not.toContain(secret);
+    expect(leaked).toContain("Error: connect failed for");
   });
 
   it("names the tool behind a command, not the runner or script", () => {
