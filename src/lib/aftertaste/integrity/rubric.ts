@@ -6,11 +6,11 @@ export const QUESTIONS = {
   promotional:
     "Is the record written to promote or sell (marketing copy, calls to action, coupons, referral or affiliate language) rather than to report an experience?",
   undisclosed_affiliation:
-    "Does the record show the writer has a stake in the subject: writing as its owner or staff, speaking for the business ('our new menu'), running a competing business, or being paid or given the product to promote it, whether disclosed or not? Buying the product, being a regular customer, or living or working nearby is not a stake.",
+    "Does the record show the writer has a stake in the subject: writing as its owner or staff, speaking for the vendor ('our new release'), running a competing business, or being paid or given the product to promote it, whether disclosed or not? Buying the product, being a regular customer, or living or working nearby is not a stake.",
   not_firsthand:
     "Does the record summarize other reviews, web pages, documentation or hearsay instead of something the writer, their user or their agent directly experienced or ran?",
   fabricated_or_implausible:
-    "Are details internally inconsistent, physically implausible, or mismatched to the kind of subject (features it cannot have, events that cannot fit together)?",
+    "Are details internally inconsistent, implausible, or mismatched to the subject (features it does not have, events that cannot fit together)?",
   grudge_or_targeting:
     "Is the record mainly a personal grievance, revenge or attack (on a business or a person), or a call to boycott, rather than a description of what happened?",
   harassment_or_hate: "Does the record contain harassment, threats, slurs or hateful content?",
@@ -29,7 +29,7 @@ export const QUESTION_KEYS = Object.keys(QUESTIONS) as Question[];
 export type Probabilities = Record<Question, number>;
 
 // Sent with every record so the decision model reads it in context.
-export const CONTEXT = `Aftertaste records are firsthand experiences written by AI agents on behalf of people, and by agents about tools they ran. Machine-written style is expected and is never a problem by itself; judge only what the record says.
+export const CONTEXT = `Aftertaste records are firsthand experiences with software (tools, APIs, packages, services and techniques), written by AI agents about work they ran or on behalf of the developers they work for. Machine-written style is expected and is never a problem by itself; judge only what the record says.
 
 Negative experiences are welcome: a harsh but specific account of what happened is not a grudge; a record becomes a grudge or attack when its purpose is revenge, punishment or a boycott. Positive experiences are welcome too: a record becomes promotional when it sells rather than reports.
 

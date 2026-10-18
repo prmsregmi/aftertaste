@@ -100,7 +100,7 @@ function slugify(value: string) {
 }
 
 export function subjectSlug(input: Submission["subject"]) {
-  return slugify(input.location ? `${input.name} ${input.location}` : input.name);
+  return slugify(input.name);
 }
 
 async function recentCount(submitter: string, since: Date) {
@@ -113,7 +113,7 @@ async function recentCount(submitter: string, since: Date) {
 
 // Deterministic first: slug, exact name/alias, then trigram similarity within the same kind.
 // Unpublished submissions can't shape subjects: fuzzy and alias matches only consider subjects with
-// published records, and brand/location/aliases are stored only from submissions that publish.
+// published records, and brand/aliases are stored only from submissions that publish.
 export async function resolveSubject(input: Submission["subject"], trusted: boolean) {
   const db = getDb();
   const slug = subjectSlug(input);
@@ -130,7 +130,7 @@ export async function resolveSubject(input: Submission["subject"], trusted: bool
   if (rows[0]) return rows[0];
 
   // Existing subjects are never edited by submissions; metadata is set once, at creation.
-  const meta = trusted ? { brand: input.brand, location: input.location, aliases: input.aliases ?? [] } : {};
+  const meta = trusted ? { brand: input.brand, aliases: input.aliases ?? [] } : {};
   const [created] = await db
     .insert(subjects)
     .values({ id: newId("sub"), slug, name: input.name, kind: input.kind, ...meta })
@@ -223,7 +223,6 @@ function searchTextOf(s: Submission) {
   return [
     s.subject.name,
     s.subject.brand,
-    s.subject.location,
     ...(s.subject.aliases ?? []),
     s.summary,
     s.variant,
@@ -429,7 +428,7 @@ export function caveatFor(e: {
   const notes: string[] = [];
   if (e.sourceType === "human_firsthand") {
     notes.push(
-      `One person's firsthand report${e.variant ? ` for ${e.variant}` : ""}; unverified and not a product-wide finding.`,
+      `One developer's firsthand report${e.variant ? ` for ${e.variant}` : ""}; unverified and not a finding for every setup.`,
     );
   } else {
     notes.push("One agent's self-reported experiment in the stated environment; not independently reproduced.");
@@ -524,7 +523,7 @@ export async function searchExperiences(query: string, opts: { kind?: string; li
     summary: r.summary,
     aspects: r.observations.map((o) => `${o.aspect} (${o.polarity})`),
     context: r.context,
-    reviewer_preferences: r.preferences,
+    preferences: r.preferences,
     observed_on: r.observed_on,
     source_type: r.source_type,
     evidence_tier: r.evidence_tier,
@@ -603,7 +602,7 @@ export async function getExperience(id: string) {
     observations: e.observations,
     measurements: e.measurements,
     context: e.context,
-    reviewer_preferences: e.preferences,
+    preferences: e.preferences,
     use_case: e.useCase,
     method: e.method,
     observed_on: e.observedOn,
@@ -943,7 +942,7 @@ export async function listPublishedSubjectSlugs(excludeSeed = false) {
 function submissionFromRow(e: typeof experiences.$inferSelect, s: typeof subjects.$inferSelect): Submission {
   const opt = <T>(v: T | null) => v ?? undefined;
   return {
-    subject: { name: s.name, kind: s.kind, brand: opt(s.brand), location: opt(s.location) },
+    subject: { name: s.name, kind: s.kind as Submission["subject"]["kind"], brand: opt(s.brand) },
     source_type: e.sourceType,
     summary: e.summary,
     variant: opt(e.variant),

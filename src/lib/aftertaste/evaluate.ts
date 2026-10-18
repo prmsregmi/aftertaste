@@ -144,13 +144,13 @@ export function evaluateSubmission(input: Submission): Evaluation {
 
   // Specificity: an experience needs conditions that let others judge whether it applies to them.
   const hasContext =
-    Boolean(input.variant || input.subject.location || input.observed_on || input.use_case) ||
+    Boolean(input.variant || input.observed_on || input.use_case) ||
     Object.keys(input.context ?? {}).length > 0;
   if (!hasContext) {
     flag(
       "insufficient_context",
       "pending_review",
-      "Add the variant, date, location, environment or use case the experience applies to.",
+      "Add the version, date, environment or use case the experience applies to.",
     );
   }
   if (input.source_type === "agent_experiment" && (!input.method || !(input.variant || input.context))) {

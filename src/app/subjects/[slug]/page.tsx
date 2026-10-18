@@ -53,12 +53,6 @@ async function SubjectDetail({ params }: Pick<PageProps<"/subjects/[slug]">, "pa
         <dd>{teaser.sourceTypes.map((s) => s.replace("_", " ")).join(", ")}</dd>
         <dt className="text-muted-foreground">Aspects reported</dt>
         <dd>{teaser.aspects.join(", ")}</dd>
-        {subject.location && (
-          <>
-            <dt className="text-muted-foreground">Location</dt>
-            <dd>{subject.location}</dd>
-          </>
-        )}
       </dl>
 
       {teaser.samples.length > 0 && (

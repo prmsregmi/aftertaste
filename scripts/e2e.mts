@@ -32,35 +32,39 @@ async function call(client: Client, name: string, args: Record<string, unknown> 
   return data;
 }
 
-const jacket = {
-  subject: { name: "Canyon motorcycle jacket", kind: "physical_product", brand: "Canyon" },
+const report = {
+  subject: { name: "Stripe Node SDK", kind: "software", brand: "Stripe" },
   source_type: "human_firsthand",
   summary:
-    "Overall good jacket; in size S the body length runs a little short for this wearer and the rear adjustment strap stays loose.",
-  variant: "size S",
+    "Overall solid SDK; in stripe-node v17 webhook signature verification fails on a parsed body and the error message does not say why.",
+  variant: "stripe-node v17",
   observations: [
-    { aspect: "overall", observation: "Wearer is happy with the jacket overall after first rides.", polarity: "positive" },
-    { aspect: "length", observation: "Body length in size S felt a little short for this wearer.", polarity: "negative" },
+    { aspect: "overall", observation: "Developer is happy with the SDK overall after the first integration.", polarity: "positive" },
     {
-      aspect: "adjustability",
-      observation: "Rear back adjustment strap stays loose even when fully cinched.",
+      aspect: "webhook verification",
+      observation: "Signature verification failed whenever the request body had already been parsed as JSON.",
+      polarity: "negative",
+    },
+    {
+      aspect: "error messages",
+      observation: "The signature error did not mention that the raw request body is required.",
       polarity: "negative",
     },
   ],
-  context: { size_worn: "S" },
-  preferences: { usual_size: "S", fit_preference: "room for armor layers", riding: "daily commuter" },
+  context: { framework: "Next.js 16", runtime: "Node 24" },
+  preferences: { optimizing_for: "correctness", budget: "free tier", team: "solo developer" },
   observed_on: new Date().toISOString().slice(0, 7),
-  limitations: "One person's fit impression in one size; body shape and layering underneath differ between riders.",
+  limitations: "One developer's setup with one framework version; body parsing and middleware differ between projects.",
   permission: { basis: "explicit_user_approval", user_reviewed_final_text: true },
-  idempotency_key: `e2e-jacket-${run}`,
+  idempotency_key: `e2e-sdk-${run}`,
 };
 
 const spam = {
-  subject: { name: "Canyon motorcycle jacket", kind: "physical_product" },
+  subject: { name: "Stripe Node SDK", kind: "software" },
   source_type: "human_firsthand",
-  summary: "Every Canyon jacket is defective! Five stars! Buy at this affiliate URL!",
+  summary: "Every Stripe SDK release is broken! Five stars! Buy at this affiliate URL!",
   observations: [
-    { aspect: "quality", observation: "BEST JACKET EVER https://shop.example/jacket?ref=aff123", polarity: "positive" },
+    { aspect: "quality", observation: "BEST SDK EVER https://shop.example/sdk?ref=aff123", polarity: "positive" },
   ],
   limitations: "None at all, trust me.",
   permission: { basis: "explicit_user_approval", user_reviewed_final_text: true },
@@ -76,16 +80,16 @@ async function main() {
   );
   console.log(`  rejected: ${rejected}`);
 
-  console.log("\n2. Agent B gets a token from the setup endpoint and asks about the jacket");
+  console.log("\n2. Agent B gets a token from the setup endpoint and asks about the SDK");
   const b = await connect("agent-b", await register(`agent-b-${run}`));
   console.log(`  tools: ${(await b.listTools()).tools.map((t) => t.name).join(", ")}`);
   console.log(`  instructions received: ${Boolean(b.getInstructions())}`);
-  const before = await call(b, "search_experiences", { query: "How is the Canyon motorcycle jacket fit in size S?" });
+  const before = await call(b, "search_experiences", { query: "How reliable is webhook signature verification in stripe-node v17?" });
   console.log(`  results: ${before.results.length} | ${before.coverage_note}`);
   if (before.disambiguation) console.log(`  ${before.disambiguation}`);
 
-  console.log("\n3. Agent A gets its own token and submits the user's approved fit report");
-  const a = await connect("agent-a", await register(`rider-assistant-${run}`));
+  console.log("\n3. Agent A gets its own token and submits the user's approved SDK report");
+  const a = await connect("agent-a", await register(`dev-assistant-${run}`));
   console.log(`  identity: ${(await call(a, "get_identity_status")).contributor_id}`);
 
   const handle = process.env.E2E_INKBOX_HANDLE;
@@ -98,9 +102,9 @@ async function main() {
     const verified = await call(a, "verify_agent_identity", { inkbox_handle: handle, nonce: challenge.nonce });
     console.log(`  agent identity: ${verified.verified_agent ?? "not verified"}`);
   }
-  const submitted = await call(a, "submit_experience", jacket);
+  const submitted = await call(a, "submit_experience", report);
   console.log(`  ${submitted.id}: ${submitted.status} ${JSON.stringify(submitted.reason_codes)}`);
-  const replay = await call(a, "submit_experience", jacket);
+  const replay = await call(a, "submit_experience", report);
   console.log(`  retry with same idempotency key -> ${replay.id === submitted.id ? "same record" : "NEW RECORD"}`);
 
   console.log("\n4. Spam is withheld");
@@ -108,7 +112,7 @@ async function main() {
   console.log(`  spam ${spamResult.id}: ${spamResult.status} ${JSON.stringify(spamResult.reason_codes)}`);
 
   console.log("\n5. Agent B, a separate connection, searches again");
-  const after = await call(b, "search_experiences", { query: "How is the Canyon motorcycle jacket fit in size S?" });
+  const after = await call(b, "search_experiences", { query: "How reliable is webhook signature verification in stripe-node v17?" });
   for (const r of after.results) {
     const who = r.contributor.verified_agent ?? r.contributor.label ?? r.contributor.kind;
     console.log(`  ${r.id} [${r.source_type}, ${who}] ${r.subject.name}: ${r.caveat}`);

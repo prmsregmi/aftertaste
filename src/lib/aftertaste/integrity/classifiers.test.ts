@@ -5,16 +5,16 @@ import { chunkText, decideRecord, injectionText, screenContent, type Providers }
 import { decideContent, fuse, QUESTION_KEYS, type Probabilities, type Question } from "./rubric";
 
 const record = submissionSchema.parse({
-  subject: { name: "Nopa", kind: "place", location: "San Francisco" },
+  subject: { name: "Supabase Auth", kind: "software", brand: "Supabase" },
   source_type: "human_firsthand",
-  summary: "Dinner for two on a Friday; the wood-fired pork chop was excellent but the room was loud.",
+  summary: "Added email login to a Next.js app; session refresh worked, but the local setup was slow and the docs were out of date.",
   observations: [
-    { aspect: "food", observation: "The pork chop was juicy and well seasoned.", polarity: "positive" },
-    { aspect: "noise", observation: "Hard to talk across the table at 8pm.", polarity: "negative" },
+    { aspect: "session refresh", observation: "The refresh token rotated cleanly across tabs.", polarity: "positive" },
+    { aspect: "docs accuracy", observation: "The quickstart still used the deprecated helper package.", polarity: "negative" },
   ],
-  context: { party: "two adults" },
+  context: { framework: "Next.js 16" },
   observed_on: "2026-10",
-  limitations: "One visit on a busy night.",
+  limitations: "One small app on the free plan.",
   permission: { basis: "explicit_user_approval", user_reviewed_final_text: true },
 });
 
@@ -72,7 +72,7 @@ describe("decideRecord", () => {
 describe("prompt-injection input", () => {
   it("covers every free-text field the decision model reads", () => {
     const text = injectionText(record);
-    for (const part of ["Nopa", "pork chop", "8pm", "two adults", "busy night"]) expect(text).toContain(part);
+    for (const part of ["Supabase Auth", "refresh token", "deprecated helper", "Next.js 16", "free plan"]) expect(text).toContain(part);
   });
 
   it("splits long text into overlapping windows", () => {

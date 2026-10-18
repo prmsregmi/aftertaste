@@ -70,14 +70,14 @@ function actorFor(i: number, contributor: { id: string; label: string; createdAt
 
 // Paraphrases, as an LLM-driven ring would write them: no two records share a content hash.
 const COMPLAINTS = [
-  "Waited forty minutes past the reservation and the staff ignored us the entire night.",
-  "We waited 40 minutes past our reservation time and staff ignored us all night long.",
-  "Forty minute wait after the booked time, then the staff ignored our table all evening.",
-  "Our reservation meant nothing: forty minutes of waiting and staff who never looked our way.",
-  "Showed up on time, waited about forty minutes, and the staff ignored us for the rest of the night.",
-  "The reservation was ignored, we stood for forty minutes, and nobody on staff checked on us.",
-  "After a forty minute wait past our booking, the staff acted like our table did not exist.",
-  "Forty minutes late seating despite a reservation, and the staff ignored us from start to finish.",
+  "Hit timeouts for forty minutes after deploying and the support team ignored our ticket the entire time.",
+  "We hit timeouts for 40 minutes after our deploy and support ignored our ticket the whole time.",
+  "Forty minutes of timeouts after the rollout, then the support team ignored our ticket for hours.",
+  "The documented retry behavior did nothing: forty minutes of timeouts and a support team that never answered.",
+  "Deployed on schedule, hit timeouts for about forty minutes, and support ignored us for the rest of the incident.",
+  "The status page said healthy, we saw timeouts for forty minutes, and nobody on support replied to us.",
+  "After forty minutes of timeouts following our deploy, support acted like our ticket did not exist.",
+  "Forty minutes of failed requests despite a healthy status page, and support ignored us from start to finish.",
 ];
 
 async function main() {
@@ -86,10 +86,10 @@ async function main() {
   console.log("ip lists:", await refreshIpRanges());
 
   const targets = (
-    await db.execute<{ id: string; name: string; kind: string; location: string | null }>(sql`
-      select s.id, s.name, s.kind::text kind, s.location from subjects s
+    await db.execute<{ id: string; name: string; kind: string }>(sql`
+      select s.id, s.name, s.kind::text kind from subjects s
       join experiences e on e.subject_id = s.id and e.status = 'published'
-      where s.kind = 'place' group by s.id order by count(*) desc limit 3`)
+      where s.kind = 'software' group by s.id order by count(*) desc limit 3`)
   ).rows;
   if (targets.length < 3) throw new Error("Seed the database first (pnpm db:seed).");
   console.log("targets:", targets.map((t) => t.name).join("; "));
@@ -114,15 +114,15 @@ async function main() {
     for (const t of targets) {
       const result = await submitExperience(
         submissionSchema.parse({
-          subject: { name: t.name, kind: t.kind, location: t.location ?? undefined },
+          subject: { name: t.name, kind: t.kind },
           source_type: "human_firsthand",
-          summary: `Terrible night at ${t.name}. ${COMPLAINTS[i]}`,
+          summary: `Terrible experience with ${t.name}. ${COMPLAINTS[i]}`,
           observations: [
-            { aspect: "service", observation: COMPLAINTS[i], polarity: "negative" },
-            { aspect: "wait", observation: "The wait was far longer than quoted.", polarity: "negative" },
+            { aspect: "support responsiveness", observation: COMPLAINTS[i], polarity: "negative" },
+            { aspect: "uptime", observation: "The outage lasted far longer than the status page stated.", polarity: "negative" },
           ],
           observed_on: new Date().toISOString().slice(0, 7),
-          limitations: "One visit on one evening.",
+          limitations: "One deployment during one incident.",
           permission: { basis: "standing_user_permission", user_reviewed_final_text: true },
         }),
         actorFor(i, member),

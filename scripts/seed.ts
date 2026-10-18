@@ -128,8 +128,8 @@ async function main() {
     const slug = subjectSlug(s.subject);
     let subject = subjectRows.get(slug);
     if (!subject) {
-      const { name, kind, brand, location, aliases } = s.subject;
-      subject = { id: newId("sub"), slug, name, kind, brand, location, aliases: aliases ?? [], createdAt };
+      const { name, kind, brand, aliases } = s.subject;
+      subject = { id: newId("sub"), slug, name, kind, brand, aliases: aliases ?? [], createdAt };
       subjectRows.set(slug, subject);
     }
     if (createdAt < subject.createdAt) subject.createdAt = createdAt;

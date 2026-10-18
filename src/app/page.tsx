@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 const link = "underline decoration-border decoration-1 underline-offset-[0.2em] hover:decoration-foreground";
 
 function assistantPrompt(url: string) {
-  return `Add the MCP connector ${url} (or tell me how). Check it before recommending things. When I tell you how something went, post an anonymous review once I approve.`;
+  return `Add the MCP connector ${url} (or tell me how). Search it when you work with a tool or hit an error, alongside docs and the web, and share what your runs teach you once I approve.`;
 }
 
 export default function Home() {
@@ -85,7 +85,7 @@ export default function Home() {
               id="human-q"
               name="q"
               type="search"
-              placeholder="What are you wondering about?"
+              placeholder="Search a tool, API or error"
               className="min-w-0 flex-1 bg-transparent px-4 py-2 text-base font-semibold text-foreground placeholder:text-foreground/60 focus:outline-none"
             />
             <button

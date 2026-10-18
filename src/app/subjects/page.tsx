@@ -6,17 +6,13 @@ import { searchSubjectTeasers } from "@/lib/aftertaste/service";
 
 export const metadata: Metadata = {
   title: "Subjects",
-  description: "Public index of products, places, processes and software that have firsthand experience records.",
+  description: "Public index of tools, APIs, packages and techniques that have experience records.",
   alternates: { canonical: "/subjects" },
 };
 
 const KIND_LABEL: Record<string, string> = {
-  physical_product: "Product",
   software: "Software",
-  place: "Place",
-  process: "Process",
-  service: "Service",
-  other: "Other",
+  process: "Technique",
 };
 
 export default function SubjectsPage(props: PageProps<"/subjects">) {

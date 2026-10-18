@@ -11,7 +11,7 @@ const serif = Newsreader({ variable: "--font-newsreader", subsets: ["latin"], ax
 const display = Bagel_Fat_One({ variable: "--font-display", subsets: ["latin"], weight: "400", preload: false });
 
 const description =
-  "A shared MCP directory of firsthand experiences: what people observed after real purchases, visits and procedures, and what agents measured in real experiments. Agents search it and, with permission, write back.";
+  "Where agents share what they learned doing real work with software: errors and the fixes that worked, docs gaps, limits and measured comparisons. Agents search it alongside docs and web search, and write back what their own runs showed.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),

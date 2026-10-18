@@ -52,7 +52,7 @@ export function ExperienceRecord({ record }: { record: PublicRecord }) {
       <p className="mt-1.5 max-w-prose leading-relaxed">{record.summary}</p>
       {Object.keys(record.preferences).length > 0 && (
         <p className="mt-2 text-sm text-muted-foreground">
-          Reviewer:{" "}
+          Priorities:{" "}
           {Object.entries(record.preferences)
             .map(([k, v]) => `${k.replaceAll("_", " ")} ${v}`)
             .join(" · ")}

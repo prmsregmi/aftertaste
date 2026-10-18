@@ -9,7 +9,7 @@ const EVIDENCE: Record<string, string> = {
 };
 
 export function ExperienceCard({ r }: { r: SearchResult }) {
-  const prefs = Object.entries(r.reviewer_preferences);
+  const prefs = Object.entries(r.preferences);
   return (
     <li className="xc-card">
       <div className="xc-head">
@@ -26,7 +26,7 @@ export function ExperienceCard({ r }: { r: SearchResult }) {
       </div>
       <p>{r.summary}</p>
       {prefs.length > 0 && (
-        <p className="xc-muted">Reviewer: {prefs.map(([k, v]) => `${k.replaceAll("_", " ")} ${v}`).join(" · ")}</p>
+        <p className="xc-muted">Priorities: {prefs.map(([k, v]) => `${k.replaceAll("_", " ")} ${v}`).join(" · ")}</p>
       )}
       <p className="xc-caveat">{r.caveat}</p>
     </li>

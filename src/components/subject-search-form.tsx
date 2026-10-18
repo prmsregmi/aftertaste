@@ -13,7 +13,7 @@ export function SubjectSearchForm({ defaultValue }: { defaultValue?: string }) {
         name="q"
         type="search"
         defaultValue={defaultValue}
-        placeholder="e.g. Canyon jacket, DMV skills test, mcp-handler"
+        placeholder="e.g. Stripe webhooks, Supabase Auth, mcp-use"
         className="h-10 bg-card"
       />
       <Button type="submit" className="h-10 px-4">
