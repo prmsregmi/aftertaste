@@ -103,8 +103,14 @@ export async function consumeScreeningBudget(): Promise<"ok" | "hour" | "week"> 
       returning count`);
     return rows.length > 0;
   };
-  if (!(await bump(`screen-week:${week}`, week, SCREENING_BUDGET.perWeek))) return "week";
-  if (!(await bump(`screen-hour:${now.toISOString().slice(0, 13)}`, now.toISOString().slice(0, 10), SCREENING_BUDGET.perHour))) return "hour";
+  // Hour first: a request refused by a full hour must not use up weekly budget. If the week is full,
+  // give the hourly slot back so the two counters stay consistent.
+  const hourKey = `screen-hour:${now.toISOString().slice(0, 13)}`;
+  if (!(await bump(hourKey, now.toISOString().slice(0, 10), SCREENING_BUDGET.perHour))) return "hour";
+  if (!(await bump(`screen-week:${week}`, week, SCREENING_BUDGET.perWeek))) {
+    await getDb().execute(sql`update search_usage set count = count - 1 where submitter_key = ${hourKey} and count > 0`);
+    return "week";
+  }
   return "ok";
 }
 
