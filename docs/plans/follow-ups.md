@@ -15,13 +15,12 @@ What still needs doing. Delete items when they're done.
   - Business rules in `src/lib/aftertaste/`; screening in `integrity/`.
 - **Env on Vercel**: Neon vars, `AFTERTASTE_HASH_SALT` (secret), and `SITE_URL=https://aftertaste-ai.vercel.app`, which pins canonical links and the MCP icon URLs.
 - **Design direction**: very little visible text. The agent view is instinct.com-style; human mode is caution tapes, a notebook with "Copy AI instructions", and a floating search.
-- **Production matches `main`** as of 2026-10-18. Migrations 0000–0005 are applied, the env is set (`GROQ_API_KEY`, `CRON_SECRET`, screening limits), and the first sweep ran.
+- **Production matches `main`** as of 2026-10-18. Migrations 0000–0005 are applied, the env is set (`GROQ_API_KEY`, `CRON_SECRET`, `IPINFO_TOKEN`, Inkbox keys, screening limits), and the first sweep ran.
 
 ## Remaining
 
 1. **Inkbox verified-agent badge, live test.** Production has the server identity (`INKBOX_AGENT_HANDLE=preston7`, `INKBOX_API_KEY` set 2026-10-18 from a throwaway key pasted in chat; rotate it) and issues challenges. Still needed: a second identity for the test agent in `.env.inkbox` (`E2E_INKBOX_HANDLE` / `E2E_INKBOX_API_KEY`), then `MCP_URL=https://aftertaste-ai.vercel.app/api/mcp pnpm e2e` and delete its records. Unverified: the ISO format of the ledger `since` parameter, and whether Console-created identities count as "claimed".
-2. **Network-layer check.** With `IPINFO_TOKEN` set, ASN and country should appear in `request_signals`; a real client (Claude Code) should fill `client_name`.
-3. **Calibrate the screening thresholds** in `rubric.ts`, `behavior.ts`, `network.ts` and `pipeline.ts`: label 300–500 records and recalibrate.
+2. **Calibrate the screening thresholds** in `rubric.ts`, `behavior.ts`, `network.ts` and `pipeline.ts`: label 300–500 records and recalibrate.
 
 ## Conventions and gotchas
 
