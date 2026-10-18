@@ -139,8 +139,8 @@ export async function assessSubmission(input: IntegrityInput, providers: Provide
     const target = content.decision.outcome === "reject" ? rejects : content.decision.outcome === "hold" ? holds : null;
     for (const q of content.decision.reasons) target?.push({ code: `content_${q}`, message: CONTENT_MESSAGES[q] });
   }
-  // Configured layers that failed mean an unscreened record; it waits for the sweep to retry.
-  if (content.configured && !content.complete) {
+  // A record the decision model didn't judge (failed or not configured) waits for the sweep to retry.
+  if (!content.complete) {
     holds.push({ code: "screening_incomplete", message: SCREENING_INCOMPLETE });
   }
 

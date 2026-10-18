@@ -89,9 +89,9 @@ describe("prompt-injection input", () => {
 });
 
 describe("screenContent", () => {
-  it("is a no-op when no provider is configured", async () => {
+  it("is incomplete when no provider is configured, so the record is held", async () => {
     const result = await screenContent(record, {});
-    expect(result).toMatchObject({ configured: false, complete: true, decision: null });
+    expect(result).toMatchObject({ configured: false, complete: false, decision: null });
   });
 
   it("passes a clean record and logs every layer", async () => {
@@ -125,11 +125,9 @@ describe("screenContent", () => {
     expect(result.layers.filter((l) => (l.result as { error?: string }).error)).toHaveLength(1);
   });
 
-  it("is incomplete without a decision model when a configured classifier fails", async () => {
+  it("is incomplete without a decision model even when the other classifiers answer", async () => {
     const result = await screenContent(record, {
-      detectInjection: async () => {
-        throw new Error("prompt guard HTTP 400");
-      },
+      detectInjection: async () => 0.01,
       moderate: async () => ({ harassment: 0.01 }),
     });
     expect(result.complete).toBe(false);
