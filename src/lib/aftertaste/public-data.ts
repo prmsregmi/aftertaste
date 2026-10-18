@@ -30,9 +30,9 @@ export async function cachedSubjectTeaser(slug: string) {
   return getSubjectTeaser(slug);
 }
 
-export async function cachedSubjectSlugs() {
+export async function cachedSubjectSlugs(excludeSeed = false) {
   "use cache";
   cacheTag(CACHE_TAG);
   cacheLife("hours");
-  return listPublishedSubjectSlugs();
+  return listPublishedSubjectSlugs(excludeSeed);
 }

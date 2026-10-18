@@ -1,5 +1,6 @@
 // Bulk-loads data/experiences.jsonl (generated seed records) as published public
 // records from 650 pseudonymous contributors, unevenly distributed. Deterministic apart from IDs.
+// Records are embedded through AI Gateway when it is reachable, so near-copy detection covers them.
 //   pnpm db:seed [--reset]     --reset first deletes every flag, review event, screening, anomaly, request signal, trust score, record, contributor and subject.
 // Operator scripts use the direct (unpooled) connection when one exists. It also wins over a local
 // DATABASE_URL that `vercel env run` layers on top of the remote environment from .env.local.
@@ -7,11 +8,13 @@ process.env.DATABASE_URL = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATA
 import { randomBytes } from "crypto";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { embedMany } from "ai";
 import { getDb } from "@/db";
 import {
   anomalies,
   contributors,
   contributorTrust,
+  EMBEDDING_DIMENSIONS,
   experiences,
   flags,
   requestSignals,
@@ -21,6 +24,7 @@ import {
 } from "@/db/schema";
 import { submissionSchema, type Submission } from "@/lib/aftertaste/contracts";
 import { evaluateSubmission } from "@/lib/aftertaste/evaluate";
+import { defaultProviders, embeddingText, MODELS } from "@/lib/aftertaste/integrity/classifiers";
 import { contentHashOf, experienceRow, newId, sha256, subjectSlug } from "@/lib/aftertaste/service";
 
 const CONTRIBUTORS = 650;
@@ -95,6 +99,17 @@ async function main() {
     accepted.push({ s: evaluation.redacted, hash, reasonCodes: evaluation.reasonCodes });
   }
 
+  const embeddings = defaultProviders().embed
+    ? (
+        await embedMany({
+          model: MODELS.embedding,
+          values: accepted.map(({ s }) => embeddingText(s)),
+          dimensions: EMBEDDING_DIMENSIONS,
+          maxParallelCalls: 4,
+        })
+      ).embeddings
+    : null;
+
   const now = Date.now();
   const labels = contributorLabels();
   const contributorRows = labels.map((label) => ({
@@ -129,7 +144,7 @@ async function main() {
       isSeed: true,
       isPublicSample: true,
     });
-    return { ...row, createdAt, updatedAt: createdAt };
+    return { ...row, embedding: embeddings?.[i] ?? null, createdAt, updatedAt: createdAt };
   });
 
   await getDb().transaction(async (tx) => {
@@ -166,7 +181,7 @@ async function main() {
 
   const perContributor = contributorRows.map((c) => experienceRows.filter((e) => e.contributorId === c.id).length).sort((a, b) => b - a);
   console.log("evaluation:", tally);
-  console.log(`loaded ${experienceRows.length} records, ${subjectRows.size} subjects, ${contributorRows.length} contributors`);
+  console.log(`loaded ${experienceRows.length} records (${embeddings ? "embedded" : "not embedded: no AI Gateway credentials"}), ${subjectRows.size} subjects, ${contributorRows.length} contributors`);
   console.log(`records per contributor: max ${perContributor[0]}, median ${perContributor[CONTRIBUTORS >> 1]}, min ${perContributor.at(-1)}`);
   process.exit(0);
 }

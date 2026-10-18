@@ -17,6 +17,7 @@ export async function generateMetadata(props: PageProps<"/subjects/[slug]">): Pr
     title: teaser.subject.name,
     description: `${teaser.publishedCount} firsthand experience record(s) about ${teaser.subject.name}, covering ${teaser.aspects.join(", ")}. Retrieve them over MCP.`,
     alternates: { canonical: `/subjects/${slug}` },
+    ...(teaser.seedOnly && { robots: { index: false } }),
   };
 }
 

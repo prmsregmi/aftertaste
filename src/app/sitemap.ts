@@ -2,10 +2,10 @@ import type { MetadataRoute } from "next";
 import { siteUrl } from "@/lib/aftertaste/guide";
 import { cachedSubjectSlugs } from "@/lib/aftertaste/public-data";
 
-// Public pages and subject teasers only; individual records are never listed.
+// Public pages and subject teasers only; individual records and seed-only subjects are never listed.
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = siteUrl();
-  const slugs = await cachedSubjectSlugs();
+  const slugs = await cachedSubjectSlugs(true);
   return [
     { url: base, changeFrequency: "daily", priority: 1 },
     { url: `${base}/docs`, changeFrequency: "weekly", priority: 0.8 },

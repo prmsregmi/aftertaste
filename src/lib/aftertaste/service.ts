@@ -913,6 +913,8 @@ export async function getSubjectTeaser(slug: string) {
   return {
     subject,
     publishedCount: all.length,
+    // Subjects known only from seed records stay out of search engines.
+    seedOnly: all.every((e) => e.isSeed),
     sourceTypes: [...new Set(all.map((e) => e.sourceType))],
     aspects: [...new Set(all.flatMap((e) => e.observations.map((o) => o.aspect)))],
     samples: rows.filter(({ e }) => e.isPublicSample).map(({ e, c }) => toPublicRecord(e, subject, c)),
@@ -921,11 +923,18 @@ export async function getSubjectTeaser(slug: string) {
   };
 }
 
-export async function listPublishedSubjectSlugs() {
+export async function listPublishedSubjectSlugs(excludeSeed = false) {
   const rows = await getDb()
     .selectDistinct({ slug: subjects.slug })
     .from(subjects)
-    .innerJoin(experiences, and(eq(experiences.subjectId, subjects.id), eq(experiences.status, "published")));
+    .innerJoin(
+      experiences,
+      and(
+        eq(experiences.subjectId, subjects.id),
+        eq(experiences.status, "published"),
+        excludeSeed ? eq(experiences.isSeed, false) : undefined,
+      ),
+    );
   return rows.map((r) => r.slug);
 }
 
