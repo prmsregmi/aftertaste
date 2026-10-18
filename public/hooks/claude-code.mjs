@@ -28,12 +28,14 @@ export function workParts(command) {
 }
 const ERROR_LINE = /error|exception|failed|cannot|can't|not found|denied|invalid|unexpected|refused|timed? ?out|unauthorized|forbidden|\bERR_|\bE[A-Z]{3,}\b/i;
 
-// Only these tokens of an error line are ever sent: plain words, error codes (ECONNREFUSED,
-// ERR_MODULE_NOT_FOUND), short numbers (401), short version-like tokens (v17, utf8) and dotfiles
-// (.env). Everything else, including paths, URLs, hosts, IDs, keys and assignments, stays local.
-// Words naming a secret or identifier, alone or as part of a name like MY_TOKEN; the value after one is dropped.
-const SECRET_NAME = /^(?:[\w-]*[_-])?(?:token|secret|password|passwd|pwd|key|apikey|auth|credentials?|cookie|session|user|username|role|account|host|hostname|org|tenant|project|database|db|bucket)(?:[_-][\w-]*)?$/i;
-const SAFE_TOKEN = /^(?:[A-Za-z][A-Za-z'-]{0,23}|[A-Z][A-Z_]{2,40}|\d{1,4}|[A-Za-z]{1,10}\d{1,4}|\.[a-z][a-z.-]{0,20})$/;
+// Only these tokens of an error line are ever sent: short plain words, error codes (ECONNREFUSED,
+// ERR_MODULE_NOT_FOUND), exception names (TypeError), short numbers (401) and dotfiles (.env).
+// Everything else, including paths, URLs, hosts, IDs, keys and assignments, stays local.
+const SAFE_TOKEN = /^(?:[A-Za-z][a-z']{0,14}|[A-Z]{2,15}|[A-Z][A-Za-z]{0,30}(?:Error|Exception|Warning)|E[A-Z]{3,15}|ERR_[A-Z_]{2,40}|\d{1,4}|\.[a-z][a-z.-]{0,20})$/;
+// A word naming a secret (anywhere in it, e.g. apiKey) or an identifier ends the signature, so the
+// value after it is never sent.
+const SECRET_WORD = /token|secret|passw|pwd|api[_-]?key|auth|bearer|cookie|session|credential|private/i;
+const IDENTIFIER_NAME = /^(?:[\w-]*[_-])?(?:key|user|username|role|account|host|hostname|org|tenant|project|database|db|bucket)(?:[_-][\w-]*)?$/i;
 
 // The most telling error line, reduced to tokens that can't carry secrets or identifiers.
 export function errorSignature(text) {
@@ -44,11 +46,10 @@ export function errorSignature(text) {
     .filter((l) => l && !/^exit code \d+$/i.test(l));
   const line = lines.find((l) => ERROR_LINE.test(l)) ?? lines[0] ?? "";
   const kept = [];
-  let afterSecretName = false;
   for (const raw of line.split(/\s+/)) {
     const t = raw.replace(/^[("'`[{<]+|[)"'`\]}>,;:.!?]+$/g, "");
-    if (!afterSecretName && SAFE_TOKEN.test(t)) kept.push(t);
-    afterSecretName = SECRET_NAME.test(t);
+    if (SAFE_TOKEN.test(t)) kept.push(t);
+    if (SECRET_WORD.test(t) || IDENTIFIER_NAME.test(t)) break;
   }
   return kept.join(" ").slice(0, 160);
 }

@@ -30,6 +30,8 @@ describe("Claude Code hook", () => {
     );
     for (const secret of ["hunter2", "admin", "internal", "sk_live", "s3cret", "ops@", "10.0.0.12", "fe80", "ghp_", "AKIA", "abc"]) expect(leaked).not.toContain(secret);
     expect(leaked).toContain("Error connect ECONNREFUSED for");
+    expect(errorSignature("Error: login failed apiKey abc")).toBe("Error login failed");
+    expect(errorSignature("TypeError: timeout reaching billing-prod-db as hunter2")).toBe("TypeError timeout reaching");
   });
 
   it("names the tool behind a command, not the runner or script", () => {
