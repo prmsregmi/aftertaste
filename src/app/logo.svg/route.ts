@@ -1,7 +1,6 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 
-export const dynamic = "force-static";
 
 export function GET() {
   const svg = readFileSync(join(process.cwd(), "public/logo.svg"));
