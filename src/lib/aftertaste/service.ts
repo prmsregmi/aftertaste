@@ -9,7 +9,7 @@ import * as inkbox from "./inkbox";
 import { evaluateSubmission, type Status } from "./evaluate";
 import { GLOBAL_REQUESTS_PER_HOUR, nextUtcMidnight, SEARCH_ALLOWANCE, searchAllowanceFor, TOKEN_REQUESTS_PER_HOUR } from "./allowance";
 import { newId, sha256 } from "./ids";
-import { screenContent } from "./integrity/classifiers";
+import { defaultProviders, screenContent } from "./integrity/classifiers";
 import { NETWORK_BLOCK_REGISTRATION, type RequestFingerprint } from "./integrity/network";
 import { assessNetwork, recordRequestSignal } from "./integrity/network-db";
 import {
@@ -489,8 +489,19 @@ export async function consumeRequestBudget(contributorId: string): Promise<"ok" 
 // Relevance = share of query terms present in the record + how much of the subject name appears in the query.
 // A record must cover at least half the query terms or have a strong subject-name match, so a single shared
 // word ("motorcycle") doesn't surface an unrelated subject.
+// Search blends meaning and wording. A record qualifies on either, so paraphrases and exact error codes
+// both find it, and meaning outweighs shared keywords in the ranking.
+const SEARCH_WEIGHT = { semantic: 0.7, keyword: 0.3 };
+// Cosine similarity at which a record counts as a match on meaning alone. Against this corpus,
+// unrelated queries top out near 0.27 and related ones score 0.45 and up.
+const MIN_SEMANTIC = 0.42;
+
 export async function searchExperiences(query: string, opts: { kind?: string; limit?: number } = {}) {
   const limit = Math.min(opts.limit ?? 8, 20);
+  // Without AI Gateway, or when it is slow, search falls back to keywords alone.
+  const embed = defaultProviders().embed;
+  const vector = embed ? await embed(query, AbortSignal.timeout(2000)).catch(() => null) : null;
+  const vectorText = vector ? JSON.stringify(vector) : null;
   const { rows } = await getDb().execute<SearchRow>(sql`
     with q as (select tsvector_to_array(to_tsvector('english', ${query})) as lexemes),
     scored as (
@@ -499,7 +510,8 @@ export async function searchExperiences(query: string, opts: { kind?: string; li
              (select count(*) from unnest(q.lexemes) l
                where to_tsvector('english', e.search_text) @@ quote_literal(l)::tsquery)::float
                / greatest(cardinality(q.lexemes), 1) as coverage,
-             word_similarity(s.name, ${query}) as name_match
+             word_similarity(s.name, ${query}) as name_match,
+             coalesce(1 - (e.embedding <=> ${vectorText}::vector), 0) as semantic
       from experiences e
       join subjects s on s.id = e.subject_id
       left join contributors c on c.id = e.contributor_id
@@ -510,9 +522,10 @@ export async function searchExperiences(query: string, opts: { kind?: string; li
     select id, summary, variant, source_type, evidence_tier, observed_on, observations, context, preferences, limitations,
            derived_from, flag_count, contributor_id, contributor_label, inkbox_handle, created_at,
            subject_id, subject_name, subject_slug, subject_kind, integrity_weight,
-           (coverage + name_match) * (0.5 + 0.5 * integrity_weight) as score
+           (${SEARCH_WEIGHT.semantic}::float * semantic + ${SEARCH_WEIGHT.keyword}::float * least(coverage + name_match, 1))
+             * (0.5 + 0.5 * integrity_weight) as score
     from scored e
-    where (coverage >= 0.5 or name_match > 0.5) and integrity_weight > 0
+    where (coverage >= 0.5 or name_match > 0.5 or semantic >= ${MIN_SEMANTIC}::float) and integrity_weight > 0
     order by score desc, ${TIER_ORDER} desc, created_at desc
     limit ${limit}`);
 

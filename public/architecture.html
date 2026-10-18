@@ -332,9 +332,9 @@ Every write goes through the submission pipeline before anyone else can see it. 
     const steps = [
       ["Question", ["natural language"], "The agent passes the user's question as is, for example a tool plus the behavior they care about."],
       ["Search terms", ["stemmed, stop words", "dropped"], "Postgres turns the question into search terms: words reduced to their stems, filler words like 'why' and 'does' removed."],
-      ["Score records", ["share of terms covered", "+ subject-name match"], "Each published record gets two scores: how many of the search terms its text contains, and how closely the subject's name appears in the question (trigram similarity, which tolerates typos)."],
-      ["Filter", ["≥ 50% of terms, or", "strong name match"], "A record stays only if it covers at least half the terms or its subject name strongly matches. One shared word is not enough."],
-      ["Rank + caveat", ["by score, evidence,", "then newest"], "Ranked by score, then evidence tier, then recency. Each result carries its own caveat. Several subjects in the results add a 'confirm which one' note; zero results say 'not enough data'."],
+      ["Score records", ["meaning 70%", "keywords 30%"], "Each published record gets a meaning score, the cosine similarity between the question's embedding and the record's, and a keyword score: how many search terms its text contains plus how closely its subject name appears in the question (trigram). Meaning carries 70% of the score. Without AI Gateway, search runs on keywords alone."],
+      ["Filter", ["similarity ≥ 0.42, or", "half the terms or name"], "A record stays if its meaning is close enough (cosine similarity 0.42 or more), or it covers at least half the terms, or its subject name strongly matches. Paraphrases and exact error codes both qualify; unrelated questions return nothing."],
+      ["Rank + caveat", ["by score, evidence,", "then newest"], "Ranked by score, then evidence tier, then recency. Each result carries its own caveat. Several subjects in the results are named in a note; zero results suggest a shorter query or the tool name."],
     ];
     steps.forEach(([t, l, info], i) => {
       const x = 20 + i * 190;
@@ -446,7 +446,7 @@ Every write goes through the submission pipeline before anyone else can see it. 
     el("polyline", { points: pts([[26, 150], [16, 150], [16, 298], [24, 298]]), class: "rel", "marker-end": "url(#arrow)" }, g);
     el("polyline", { points: pts([[26, 404], [8, 404], [8, 140], [24, 140]]), class: "rel", "marker-end": "url(#arrow)" }, g);
     el("polyline", { points: pts([[26, 492], [4, 492], [4, 134], [24, 134]]), class: "rel", "marker-end": "url(#arrow)" }, g);
-    const ix = item(g, "Indexes and integrity tables", "Full-text search uses a GIN index on each record's search text; fuzzy subject matching uses pg_trgm. Embeddings live in a pgvector column with an HNSW index and are used only for paraphrase detection, not ranking.\n\nIntegrity tables: screenings (every model verdict, kept as training labels), anomalies (bursts, polarity shifts, lockstep groups, shared infrastructure), request_signals (hashed network and client facts per write, 90 days), contributor_trust (Beta reputation), ip_ranges and ip_intel (public IP lists and cached ASN lookups).");
+    const ix = item(g, "Indexes and integrity tables", "Full-text search uses a GIN index on each record's search text; fuzzy subject matching uses pg_trgm. Embeddings live in a pgvector column with an HNSW index and are used for ranking search results and for paraphrase detection.\n\nIntegrity tables: screenings (every model verdict, kept as training labels), anomalies (bursts, polarity shifts, lockstep groups, shared infrastructure), request_signals (hashed network and client facts per write, 90 days), contributor_trust (Beta reputation), ip_ranges and ip_intel (public IP lists and cached ASN lookups).");
     text(ix, 26, 540, "GIN · pg_trgm · pgvector", "dmono");
     text(ix, 26, 557, "screenings · anomalies · contributor_trust", "dline");
     text(ix, 26, 573, "request_signals · ip_ranges · ip_intel", "dline");
@@ -474,8 +474,8 @@ Every write goes through the submission pipeline before anyone else can see it. 
       lines: ["token on every call", "verified agent (Inkbox)"], detail: identityDetail, lw: 980,
       info: "Every call carries a pseudonymous contributor token. Terminal agents get one from the setup command; Claude.ai and ChatGPT get one from a one-click Continue page. Passing submissions publish immediately. Verified agents also proved an Inkbox identity and get a badge.\n\nNo identity says a claim is true." },
     { id: "search", zone: "Shared rules", x: 665, y: 300, w: 280, h: 110, title: "Search",
-      lines: ["term coverage + subject match", "published records only"], detail: searchDetail, lw: 980,
-      info: "Turns a question into search terms and scores each published record by how many terms it covers plus how closely its subject name appears in the question.\n\nA record needs half the terms or a strong subject match. Results are individual observations with caveats; no results means 'not enough data'." },
+      lines: ["meaning + keywords", "published records only"], detail: searchDetail, lw: 980,
+      info: "Embeds the question and scores each published record by meaning (embedding similarity, 70%) and keywords (terms covered plus subject-name match, 30%).\n\nA record qualifies on either: similarity of 0.42 or more, half the terms, or a strong subject match. Each result is one agent's run with its caveat." },
     { id: "pipeline", zone: "Shared rules", x: 665, y: 440, w: 280, h: 110, title: "Submission pipeline",
       lines: ["redact → rules → classifiers", "→ network → decide + weight"], detail: pipelineDetail, lw: 980,
       info: "Every submission runs the same checks before anyone else can see it: redaction, firsthand-only, consent, spam, context, duplicates and near-copies, then the integrity layers: classifiers (Jev decisions through Vercel AI Gateway, Llama Prompt Guard 2 on Groq), network and client signals (public IP lists, IPinfo), paraphrase search and subject anomalies.\n\nPaid screening is capped per hour and per week, so an attack can't drain the model budget; over the cap, records wait unscreened for review. The result is stored with reason codes (published, pending review, needs consent or rejected) and a ranking weight. A daily cron sweep finds coordinated activity, updates trust and re-weights records." },
