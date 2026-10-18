@@ -639,16 +639,16 @@ export async function getSubmissionStatus(id: string, actor: Actor) {
 }
 
 // Registration limits on the requester's own network: an hourly cap and the network-risk block. Token
-// issue is the cheapest Sybil attack, so this is where network signals bite hardest.
+// issue is the cheapest Sybil attack, so this is where network signals bite hardest. The cap is an atomic
+// counter consumed per attempt (a Continue click counts before its code is redeemed), so parallel requests
+// can't slip past it.
 export async function checkRegistration(actor: Actor) {
-  const db = getDb();
-  const [recent] = await db
-    .select({ n: count() })
-    .from(contributors)
-    .where(
-      and(eq(contributors.createdIpHash, actor.ipHash), gt(contributors.createdAt, new Date(Date.now() - 3600_000))),
-    );
-  if (recent.n >= LIMITS.registrationsPerHour) {
+  const { rows } = await getDb().execute(sql`
+    insert into search_usage as u (submitter_key, day, count)
+    values (${`reg:${actor.ipHash}:${new Date().toISOString().slice(0, 13)}`}, (now() at time zone 'utc')::date, 1)
+    on conflict (submitter_key, day) do update set count = u.count + 1 where u.count < ${LIMITS.registrationsPerHour}
+    returning count`);
+  if (!rows.length) {
     throw new AftertasteError("rate_limited", "Too many registrations from this network in the last hour.");
   }
   const signalInput = {
@@ -688,11 +688,12 @@ export async function registerContributor(label: string, kind: "agent" | "person
   return createContributor(label, kind, actor.ipHash);
 }
 
-// True the first time a key is claimed today; used to make OAuth codes single-use.
-export async function claimOnce(key: string) {
+// True the first time a key is claimed; used to make OAuth codes single-use. The row's day comes from the
+// code itself (its expiry), not from now, so a code redeemed again after midnight hits the same row.
+export async function claimOnce(key: string, expiresAt: number) {
   const { rows } = await getDb().execute(sql`
     insert into search_usage as u (submitter_key, day, count)
-    values (${key}, (now() at time zone 'utc')::date, 1)
+    values (${key}, ${new Date(expiresAt).toISOString().slice(0, 10)}::date, 1)
     on conflict (submitter_key, day) do nothing
     returning count`);
   return rows.length > 0;

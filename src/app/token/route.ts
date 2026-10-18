@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     return oauthError("invalid_grant");
   }
   if (!sameResource(params.get("resource"))) return oauthError("invalid_target");
-  if (!(await claimOnce(`oauth_code:${code.nonce}`))) return oauthError("invalid_grant");
+  if (!(await claimOnce(`oauth_code:${code.nonce}`, code.exp))) return oauthError("invalid_grant");
   const { token } = await createContributor(`chat-${randomBytes(3).toString("hex")}`, "agent", code.ip_hash);
   const scope = params.get("scope");
   return Response.json(

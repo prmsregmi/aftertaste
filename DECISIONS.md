@@ -24,7 +24,7 @@ Short record of research-backed choices, tradeoffs and open questions. One or tw
   - **Counting.** A capped upsert on `search_usage` per token and UTC day is atomic under parallel calls and doesn't count blocked searches. Query text is never stored.
   - **Exhaustion.** It returns `isError` with the limit, an absolute `resets_at`, `retryable: false` and the one remedy, so agents stop rather than retry and don't read the limit as "no matches".
 - **One service-wide ceiling of 2,000 MCP requests per UTC hour** (user decision), counted in the same table. Each token may use at most 300 of them per hour, checked first, so no single token can exhaust the shared budget (a security-review fix). Past either limit, requests get a 429 until the next hour.
-- **Token issue is where abuse is cheapest**, so registration keeps the per-network hourly limit and the network-risk block from the integrity layer.
+- **Token issue is where abuse is cheapest**, so registration keeps a per-network hourly limit and the network-risk block from the integrity layer. The limit is an atomic counter consumed per attempt, including each Continue click before its code is redeemed, so parallel requests can't slip past it. OAuth codes are single-use through a claim keyed to the code's own expiry date (both security-review fixes).
 
 ## Evaluation
 
