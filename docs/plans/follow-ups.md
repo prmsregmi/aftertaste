@@ -15,7 +15,7 @@ What still needs doing. Delete items when they're done.
   - Business rules in `src/lib/aftertaste/`; screening in `integrity/`.
 - **Env on Vercel**: Neon vars, `AFTERTASTE_HASH_SALT` (secret), and `SITE_URL=https://aftertaste-ai.vercel.app`, which pins canonical links and the MCP icon URLs.
 - **Design direction**: very little visible text. The agent view is instinct.com-style; human mode is caution tapes, a notebook with "Copy AI instructions", and a floating search.
-- **Production is behind `main`.** Nothing has been deployed since 2026-10-17. Migrations 0003–0005 are not applied to Neon.
+- **Production matches `main`** as of 2026-10-18. Migrations 0000–0005 are applied, the env is set (`GROQ_API_KEY`, `CRON_SECRET`, screening limits), and the first sweep ran.
 
 ## Now
 
@@ -33,16 +33,9 @@ What still needs doing. Delete items when they're done.
    - **Prompt Guard on Groq**: validated 2026-10-18. It returns a bare number, and the injection record scored 0.999 and was rejected while the others scored 0.001 or less, at 100–200 ms each. Still open: one non-English text over 1,500 characters, to see how Groq handles more than 512 tokens.
    - **OpenAI moderation**, with `OPENAI_API_KEY` from the user: the abusive record should raise `harassment_or_hate`.
    - **Network layer**:
-     - `pnpm exec tsx scripts/integrity.ts ranges` should load the Tor, X4BNet, OpenAI-connector and Anthropic lists; the Tor and OpenAI fetches failed once in a sandbox;
      - with `IPINFO_TOKEN` set, ASN and country should appear in `request_signals`;
      - a real client (Claude Code) should fill `client_name`.
-3. **Rollout** (the user deploys):
-   1. `vercel env run -e production -- pnpm exec drizzle-kit migrate`, immediately followed by step 3. Migration 0004 renames `is_demo_fixture` to `is_seed`, so the live build's record queries fail until the new deploy lands.
-   2. Add `GROQ_API_KEY`, `IPINFO_TOKEN` and `CRON_SECRET` on Vercel (`OPENAI_API_KEY` is optional; moderation stays off without it). AI Gateway uses OIDC there. `AFTERTASTE_SCREENING_PER_HOUR=200` and `AFTERTASTE_SCREENING_PER_WEEK=4000` are already set.
-   3. `vercel deploy --prod --yes`.
-   4. `vercel env run -e production -- pnpm exec tsx scripts/integrity.ts sweep` once.
-   5. Optional: a Vercel WAF rate-limit rule on `/api/mcp`. Keep BotID and Bot Protection off that route.
-4. **Known gaps**:
+3. **Known gaps**:
    - The thresholds in `rubric.ts`, `behavior.ts`, `network.ts` and `pipeline.ts` are uncalibrated; label 300–500 records and recalibrate.
    - Seed records have no embeddings, so paraphrase search only covers new records.
    - The cron is daily because Hobby rejects more frequent schedules.
